@@ -1,0 +1,53 @@
+# ---------------------
+# Composer Dependencies
+# ---------------------
+# Ignore the vendor directory (packages managed by Composer)
+/vendor/
+
+# Ignore Drupal Core (managed by Composer)
+/web/core/
+
+# Ignore Contrib modules, themes, and profiles (managed by Composer)
+/web/modules/contrib/
+/web/themes/contrib/
+/web/profiles/contrib/
+/web/libraries/
+
+# ---------------------
+# Local Development
+# ---------------------
+# Ignore local DDEV configuration that shouldn't be shared
+.ddev/.global_commands/
+.ddev/db_snapshots/
+.ddev/.ssh-auth-compose-full.yaml
+.ddev/.homeadditions/
+.ddev/commands/
+.ddev/config.local.yaml
+.ddev/docker-compose.override.yaml
+.ddev/mutagen/
+.ddev/traefik/
+.ddev/mysql_history
+.ddev/bash_history
+
+# ---------------------
+# Drupal Settings & Content
+# ---------------------
+# Ignore configuration files that contain sensitive information
+/web/sites/*/settings.php
+/web/sites/*/settings.local.php
+/web/sites/*/services.yml
+
+# Ignore user-generated content
+/web/sites/*/files/
+/web/sites/*/private/
+
+# ---------------------
+# System Files
+# ---------------------
+# Ignore environment variables
+.env
+.env.local
+
+# Ignore OS generated files
+.DS_Store
+Thumbs.db

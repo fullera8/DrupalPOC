@@ -1,0 +1,338 @@
+PS C:\Users\fulle> cd Repos\DrupalPOC
+PS C:\Users\fulle\Repos\DrupalPOC> ddev config --project-type=drupal --docroot=web --create-docroot
+Flag --create-docroot has been deprecated, it is no longer needed or used
+Creating a new DDEV project config in the current directory (C:\Users\fulle\Repos\DrupalPOC)
+Once completed, your configuration will be written to C:\Users\fulle\Repos\DrupalPOC\.ddev\config.yaml
+
+Created docroot at C:\Users\fulle\Repos\DrupalPOC\web
+Configuring a 'drupal' project named 'DrupalPOC' with docroot 'web' at 'C:\Users\fulle\Repos\DrupalPOC\web'.
+For full details use 'ddev describe'.
+No settings.php file exists, creating one
+Configuration complete. You may now run 'ddev start'.
+PS C:\Users\fulle\Repos\DrupalPOC> ddev start
+Network ddev_default created
+
+ TIP OF THE DAY
+ Use `ddev exec` or `ddev .` to run commands in your web container.
+
+
+ ❤️ DDEV SPONSORSHIP STATUS
+ WOW, you have helped us regain so much ground! We're up to 70% of our $12000/month goal ($8357). Read about the
+ situation at https://ddev.com/blog/upsun-thank-you-new-sponsors-needed 🚀
+
+It looks like you have a new DDEV release.
+May we send anonymous DDEV usage statistics and errors?
+To know what we will see please take a look at
+https://docs.ddev.com/en/stable/users/usage/diagnostics/#opt-in-usage-information
+Permission to beam up? [Y/n] (yes): n
+Starting DrupalPOC...
+30.53 MiB / 30.53 MiB [--------------------------------------------------------------------] 100.00% 13.63 MiB p/s 2.4s
+Download complete.
+The index.php or index.html does not yet exist at this path:
+C:\Users\fulle\Repos\DrupalPOC\web\index.*
+You may get 403 errors 'permission denied' from the browser until it does.
+Ignore if a later action (like `ddev composer create-project`) will create it.
+
+[+] pull 63/63
+ ✔ Image ddev/ddev-webserver:v1.25.0             Pulled                                                            68.5s
+ ✔ Image ddev/ddev-traefik-router:v1.25.0        Pulled                                                            28.4s
+ ✔ Image ddev/ddev-dbserver-mariadb-11.8:v1.25.0 Pulled                                                            30.7s
+ ✔ Image ddev/ddev-xhgui:v1.25.0                 Pulled                                                            17.1s
+ ✔ Image ddev/ddev-utilities:latest              Pulled                                                            16.1s
+ ✔ Image ddev/ddev-ssh-agent:v1.25.0             Pulled                                                            24.0s
+97.64 MiB / 97.64 MiB [--------------------------------------------------------------------] 100.00% 13.93 MiB p/s 7.2s
+Download complete.
+ Volume ddev-ssh-agent_dot_ssh Created
+ Volume ddev-ssh-agent_socket_dir Created
+ Container ddev-ssh-agent Started
+ssh-agent container is running: If you want to add authentication to the ssh-agent container, run 'ddev auth ssh' to enable your keys.
+Building project images..........
+Project images built in 7s.
+ Network ddev-drupalpoc_default Created
+ Container ddev-DrupalPOC-web Started
+ Container ddev-DrupalPOC-db Started
+mkcert may not be properly installed, we suggest installing it for trusted https support, `brew install mkcert nss`, `choco install -y mkcert`, etc. and then `mkcert -install`
+Starting Mutagen sync process...
+Mutagen sync flush completed in 3s.
+For details on sync status 'ddev mutagen st DrupalPOC -l'
+Waiting for containers to become ready: [web db]... ready in 4.0s
+Starting ddev-router, pushing config...
+ Container ddev-router Started
+Waiting for ddev-router to become ready... ready in 5.5s
+Successfully started DrupalPOC
+Your project can be reached at http://drupalpoc.ddev.site
+See 'ddev describe' for alternate URLs.
+PS C:\Users\fulle\Repos\DrupalPOC> ddev composer create drupal/recommended-project
+Command "create" is deprecated, please start using the identical "ddev composer create-project" instead
+Executing Composer command: [composer create-project --no-plugins --no-scripts --no-install drupal/recommended-project /tmp/DBVeEJ]
+
+Creating a "drupal/recommended-project" project at "/tmp/DBVeEJ"
+Installing drupal/recommended-project (11.3.3)
+Plugins have been disabled.
+  - Downloading drupal/recommended-project (11.3.3)
+  - Installing drupal/recommended-project (11.3.3): Extracting archive
+Created project in /tmp/DBVeEJ
+Moving install to Composer root
+Executing Composer command: [composer install]
+
+Installing dependencies from lock file (including require-dev)
+Verifying lock file contents can be installed on current platform.
+Package operations: 62 installs, 0 updates, 0 removals
+  - Downloading composer/installers (v2.3.0)
+  - Downloading drupal/core-composer-scaffold (11.3.3)
+  - Downloading drupal/core-project-message (11.3.3)
+  - Downloading drupal/core-recipe-unpack (11.3.3)
+  - Downloading symfony/polyfill-iconv (v1.33.0)
+  - Downloading symfony/polyfill-mbstring (v1.33.0)
+  - Downloading symfony/polyfill-ctype (v1.33.0)
+  - Downloading symfony/deprecation-contracts (v3.6.0)
+  - Downloading twig/twig (v3.22.2)
+  - Downloading symfony/yaml (v7.4.1)
+  - Downloading symfony/var-exporter (v7.4.0)
+  - Downloading symfony/var-dumper (v7.4.4)
+  - Downloading symfony/translation-contracts (v3.6.1)
+  - Downloading symfony/polyfill-php83 (v1.33.0)
+  - Downloading symfony/validator (v7.4.5)
+  - Downloading symfony/polyfill-intl-normalizer (v1.33.0)
+  - Downloading symfony/polyfill-intl-grapheme (v1.33.0)
+  - Downloading symfony/string (v7.4.4)
+  - Downloading psr/container (2.0.2)
+  - Downloading symfony/service-contracts (v3.6.1)
+  - Downloading symfony/polyfill-php84 (v1.33.0)
+  - Downloading symfony/serializer (v7.4.5)
+  - Downloading symfony/routing (v7.4.4)
+  - Downloading symfony/http-foundation (v7.4.5)
+  - Downloading psr/http-message (2.0)
+  - Downloading symfony/psr-http-message-bridge (v7.4.4)
+  - Downloading symfony/process (v7.4.5)
+  - Downloading symfony/polyfill-php85 (v1.33.0)
+  - Downloading symfony/polyfill-intl-idn (v1.33.0)
+  - Downloading symfony/mime (v7.4.5)
+  - Downloading psr/event-dispatcher (1.0.0)
+  - Downloading symfony/event-dispatcher-contracts (v3.6.0)
+  - Downloading symfony/event-dispatcher (v7.4.4)
+  - Downloading psr/log (3.0.2)
+  - Downloading doctrine/lexer (3.0.1)
+  - Downloading egulias/email-validator (4.0.4)
+  - Downloading symfony/mailer (v7.4.4)
+  - Downloading symfony/error-handler (v7.4.4)
+  - Downloading symfony/http-kernel (v7.4.5)
+  - Downloading symfony/finder (v7.4.5)
+  - Downloading symfony/filesystem (v7.4.0)
+  - Downloading symfony/dependency-injection (v7.4.5)
+  - Downloading symfony/console (v7.4.4)
+  - Downloading revolt/event-loop (v1.0.8)
+  - Downloading ralouphie/getallheaders (3.0.3)
+  - Downloading psr/http-factory (1.1.0)
+  - Downloading psr/http-client (1.0.3)
+  - Downloading php-tuf/composer-stager (v2.0.2)
+  - Downloading pear/pear_exception (v1.0.2)
+  - Downloading pear/console_getopt (v1.4.3)
+  - Downloading pear/pear-core-minimal (v1.10.18)
+  - Downloading pear/archive_tar (1.6.0)
+  - Downloading mck89/peast (v1.17.4)
+  - Downloading masterminds/html5 (2.10.0)
+  - Downloading guzzlehttp/psr7 (2.8.0)
+  - Downloading guzzlehttp/promises (2.3.0)
+  - Downloading guzzlehttp/guzzle (7.10.0)
+  - Downloading sebastian/diff (7.0.0)
+  - Downloading composer/semver (3.4.4)
+  - Downloading asm89/stack-cors (v2.3.0)
+  - Downloading drupal/core (11.3.3)
+  - Installing composer/installers (v2.3.0): Extracting archive
+  - Installing drupal/core-composer-scaffold (11.3.3): Extracting archive
+  - Installing drupal/core-project-message (11.3.3): Extracting archive
+  - Installing drupal/core-recipe-unpack (11.3.3): Extracting archive
+  - Installing symfony/polyfill-iconv (v1.33.0): Extracting archive
+  - Installing symfony/polyfill-mbstring (v1.33.0): Extracting archive
+  - Installing symfony/polyfill-ctype (v1.33.0): Extracting archive
+  - Installing symfony/deprecation-contracts (v3.6.0): Extracting archive
+  - Installing twig/twig (v3.22.2): Extracting archive
+  - Installing symfony/yaml (v7.4.1): Extracting archive
+  - Installing symfony/var-exporter (v7.4.0): Extracting archive
+  - Installing symfony/var-dumper (v7.4.4): Extracting archive
+  - Installing symfony/translation-contracts (v3.6.1): Extracting archive
+  - Installing symfony/polyfill-php83 (v1.33.0): Extracting archive
+  - Installing symfony/validator (v7.4.5): Extracting archive
+  - Installing symfony/polyfill-intl-normalizer (v1.33.0): Extracting archive
+  - Installing symfony/polyfill-intl-grapheme (v1.33.0): Extracting archive
+  - Installing symfony/string (v7.4.4): Extracting archive
+  - Installing psr/container (2.0.2): Extracting archive
+  - Installing symfony/service-contracts (v3.6.1): Extracting archive
+  - Installing symfony/polyfill-php84 (v1.33.0): Extracting archive
+  - Installing symfony/serializer (v7.4.5): Extracting archive
+  - Installing symfony/routing (v7.4.4): Extracting archive
+  - Installing symfony/http-foundation (v7.4.5): Extracting archive
+  - Installing psr/http-message (2.0): Extracting archive
+  - Installing symfony/psr-http-message-bridge (v7.4.4): Extracting archive
+  - Installing symfony/process (v7.4.5): Extracting archive
+  - Installing symfony/polyfill-php85 (v1.33.0): Extracting archive
+  - Installing symfony/polyfill-intl-idn (v1.33.0): Extracting archive
+  - Installing symfony/mime (v7.4.5): Extracting archive
+  - Installing psr/event-dispatcher (1.0.0): Extracting archive
+  - Installing symfony/event-dispatcher-contracts (v3.6.0): Extracting archive
+  - Installing symfony/event-dispatcher (v7.4.4): Extracting archive
+  - Installing psr/log (3.0.2): Extracting archive
+  - Installing doctrine/lexer (3.0.1): Extracting archive
+  - Installing egulias/email-validator (4.0.4): Extracting archive
+  - Installing symfony/mailer (v7.4.4): Extracting archive
+  - Installing symfony/error-handler (v7.4.4): Extracting archive
+  - Installing symfony/http-kernel (v7.4.5): Extracting archive
+  - Installing symfony/finder (v7.4.5): Extracting archive
+  - Installing symfony/filesystem (v7.4.0): Extracting archive
+  - Installing symfony/dependency-injection (v7.4.5): Extracting archive
+  - Installing symfony/console (v7.4.4): Extracting archive
+  - Installing revolt/event-loop (v1.0.8): Extracting archive
+  - Installing ralouphie/getallheaders (3.0.3): Extracting archive
+  - Installing psr/http-factory (1.1.0): Extracting archive
+  - Installing psr/http-client (1.0.3): Extracting archive
+  - Installing php-tuf/composer-stager (v2.0.2): Extracting archive
+  - Installing pear/pear_exception (v1.0.2): Extracting archive
+  - Installing pear/console_getopt (v1.4.3): Extracting archive
+  - Installing pear/pear-core-minimal (v1.10.18): Extracting archive
+  - Installing pear/archive_tar (1.6.0): Extracting archive
+  - Installing mck89/peast (v1.17.4): Extracting archive
+  - Installing masterminds/html5 (2.10.0): Extracting archive
+  - Installing guzzlehttp/psr7 (2.8.0): Extracting archive
+  - Installing guzzlehttp/promises (2.3.0): Extracting archive
+  - Installing guzzlehttp/guzzle (7.10.0): Extracting archive
+  - Installing sebastian/diff (7.0.0): Extracting archive
+  - Installing composer/semver (3.4.4): Extracting archive
+  - Installing asm89/stack-cors (v2.3.0): Extracting archive
+  - Installing drupal/core (11.3.3): Extracting archive
+  - Installing drupal/core-recommended (11.3.3)
+Generating autoload files
+41 packages you are using are looking for funding.
+Use the `composer fund` command to find out more!
+Scaffolding files for drupal/core:
+  - Copy [project-root]/.editorconfig from assets/scaffold/files/editorconfig
+  - Copy [project-root]/.gitattributes from assets/scaffold/files/gitattributes
+  - Copy [project-root]/recipes/README.txt from assets/scaffold/files/recipes.README.txt
+  - Copy [web-root]/.csslintrc from assets/scaffold/files/csslintrc
+  - Copy [web-root]/.eslintignore from assets/scaffold/files/eslintignore
+  - Copy [web-root]/.eslintrc.json from assets/scaffold/files/eslintrc.json
+  - Copy [web-root]/.ht.router.php from assets/scaffold/files/ht.router.php
+  - Copy [web-root]/.htaccess from assets/scaffold/files/htaccess
+  - Copy [web-root]/example.gitignore from assets/scaffold/files/example.gitignore
+  - Copy [web-root]/index.php from assets/scaffold/files/index.php
+  - Copy [web-root]/INSTALL.txt from assets/scaffold/files/drupal.INSTALL.txt
+  - Copy [web-root]/README.md from assets/scaffold/files/drupal.README.md
+  - Copy [web-root]/robots.txt from assets/scaffold/files/robots.txt
+  - Copy [web-root]/update.php from assets/scaffold/files/update.php
+  - Copy [web-root]/sites/README.txt from assets/scaffold/files/sites.README.txt
+  - Copy [web-root]/sites/development.services.yml from assets/scaffold/files/development.services.yml
+  - Copy [web-root]/sites/example.settings.local.php from assets/scaffold/files/example.settings.local.php
+  - Copy [web-root]/sites/example.sites.php from assets/scaffold/files/example.sites.php
+  - Copy [web-root]/sites/default/default.services.yml from assets/scaffold/files/default.services.yml
+  - Copy [web-root]/sites/default/default.settings.php from assets/scaffold/files/default.settings.php
+  - Copy [web-root]/modules/README.txt from assets/scaffold/files/modules.README.txt
+  - Copy [web-root]/profiles/README.txt from assets/scaffold/files/profiles.README.txt
+  - Copy [web-root]/themes/README.txt from assets/scaffold/files/themes.README.txt
+  * Homepage: https://www.drupal.org/project/drupal
+  * Support:
+    * docs: https://www.drupal.org/docs/user_guide/en/index.html
+    * chat: https://www.drupal.org/node/314178
+
+ddev composer create-project was successful.
+PS C:\Users\fulle\Repos\DrupalPOC> ddev composer require drush/drush
+./composer.json has been updated
+Running composer update drush/drush
+Loading composer repositories with package information
+Updating dependencies
+Lock file operations: 21 installs, 0 updates, 0 removals
+  - Locking chi-teck/drupal-code-generator (4.2.0)
+  - Locking consolidation/annotated-command (4.10.4)
+  - Locking consolidation/config (3.2.0)
+  - Locking consolidation/filter-via-dot-access-data (2.0.3)
+  - Locking consolidation/log (3.1.1)
+  - Locking consolidation/output-formatters (4.7.0)
+  - Locking consolidation/robo (5.1.1)
+  - Locking consolidation/site-alias (4.1.2)
+  - Locking consolidation/site-process (5.4.2)
+  - Locking dflydev/dot-access-data (v3.0.3)
+  - Locking drush/drush (13.7.1)
+  - Locking grasmash/expander (3.0.1)
+  - Locking grasmash/yaml-cli (3.2.1)
+  - Locking laravel/prompts (v0.3.13)
+  - Locking league/container (4.2.5)
+  - Locking nikic/php-parser (v5.7.0)
+  - Locking phootwork/collection (v3.2.3)
+  - Locking phootwork/lang (v3.2.3)
+  - Locking phpowermove/docblock (v4.0)
+  - Locking psy/psysh (v0.12.20)
+  - Locking symfony/polyfill-php81 (v1.33.0)
+Writing lock file
+Installing dependencies from lock file (including require-dev)
+Package operations: 21 installs, 0 updates, 0 removals
+  - Downloading consolidation/log (3.1.1)
+  - Downloading nikic/php-parser (v5.7.0)
+  - Downloading psy/psysh (v0.12.20)
+  - Downloading league/container (4.2.5)
+  - Downloading laravel/prompts (v0.3.13)
+  - Downloading dflydev/dot-access-data (v3.0.3)
+  - Downloading grasmash/yaml-cli (3.2.1)
+  - Downloading grasmash/expander (3.0.1)
+  - Downloading consolidation/config (3.2.0)
+  - Downloading consolidation/site-alias (4.1.2)
+  - Downloading consolidation/site-process (5.4.2)
+  - Downloading symfony/polyfill-php81 (v1.33.0)
+  - Downloading phootwork/lang (v3.2.3)
+  - Downloading phootwork/collection (v3.2.3)
+  - Downloading phpowermove/docblock (v4.0)
+  - Downloading consolidation/output-formatters (4.7.0)
+  - Downloading consolidation/annotated-command (4.10.4)
+  - Downloading consolidation/robo (5.1.1)
+  - Downloading consolidation/filter-via-dot-access-data (2.0.3)
+  - Downloading chi-teck/drupal-code-generator (4.2.0)
+  - Downloading drush/drush (13.7.1)
+  - Installing consolidation/log (3.1.1): Extracting archive
+  - Installing nikic/php-parser (v5.7.0): Extracting archive
+  - Installing psy/psysh (v0.12.20): Extracting archive
+  - Installing league/container (4.2.5): Extracting archive
+  - Installing laravel/prompts (v0.3.13): Extracting archive
+  - Installing dflydev/dot-access-data (v3.0.3): Extracting archive
+  - Installing grasmash/yaml-cli (3.2.1): Extracting archive
+  - Installing grasmash/expander (3.0.1): Extracting archive
+  - Installing consolidation/config (3.2.0): Extracting archive
+  - Installing consolidation/site-alias (4.1.2): Extracting archive
+  - Installing consolidation/site-process (5.4.2): Extracting archive
+  - Installing symfony/polyfill-php81 (v1.33.0): Extracting archive
+  - Installing phootwork/lang (v3.2.3): Extracting archive
+  - Installing phootwork/collection (v3.2.3): Extracting archive
+  - Installing phpowermove/docblock (v4.0): Extracting archive
+  - Installing consolidation/output-formatters (4.7.0): Extracting archive
+  - Installing consolidation/annotated-command (4.10.4): Extracting archive
+  - Installing consolidation/robo (5.1.1): Extracting archive
+  - Installing consolidation/filter-via-dot-access-data (2.0.3): Extracting archive
+  - Installing chi-teck/drupal-code-generator (4.2.0): Extracting archive
+  - Installing drush/drush (13.7.1): Extracting archive
+5 package suggestions were added by new dependencies, use `composer suggest` to see details.
+Generating autoload files
+44 packages you are using are looking for funding.
+Use the `composer fund` command to find out more!
+No security vulnerability advisories found.
+Using version ^13.7 for drush/drush
+PS C:\Users\fulle\Repos\DrupalPOC> ddev drush site:install --account-name=admin --account-pass=admin -y
+ You are about to:
+ * DROP all tables in your 'db' database.
+
+ // Do you want to continue?: yes.
+
+ [notice] Starting Drupal installation. This takes a while.
+ [notice] Performed install task: install_select_language
+ [notice] Performed install task: install_select_profile
+ [notice] Performed install task: install_load_profile
+ [notice] Performed install task: install_verify_requirements
+ [notice] Performed install task: install_verify_database_ready
+ [notice] Performed install task: install_base_system
+ [notice] Performed install task: install_bootstrap_full
+ [notice] Performed install task: install_profile_modules
+ [notice] Performed install task: install_profile_themes
+ [notice] Performed install task: install_install_profile
+ [notice] Performed install task: install_configure_form
+ [notice] Performed install task: install_finished
+ [success] Installation complete. (Admin)
+PS C:\Users\fulle\Repos\DrupalPOC> ddev launch
+HTTP may redirect to HTTPS in your browser
+See https://docs.ddev.com/en/stable/users/usage/commands/#launch
+PS C:\Users\fulle\Repos\DrupalPOC>
