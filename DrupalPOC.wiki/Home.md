@@ -21,20 +21,28 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 **Expected Users:** 100,000–120,000 (students, faculty, staff across multiple TSUS institutions)
 **Multi-Tenancy:** Single platform with tenant isolation per institution
 
-### Tech Stack (Planned)
-- **CMS:** Drupal 11 (headless, JSON:API) — content authoring for training modules, simulations, and assessments
-- **Frontend:** Angular (SPA) — student/faculty-facing training UI
+### Tech Stack
+
+**Confirmed (Day 1):**
+- **CMS:** Drupal 11.3.3 (headless, JSON:API + Webform 6.3.x-dev) — content authoring for training modules, quizzes, and assessments
+- **Frontend:** Angular 19.x (SPA) — student/faculty-facing training UI
 - **Backend API:** .NET 8 Web API — business logic, simulation engine, assessment scoring, analytics aggregation
+- **Phishing Engine:** GoPhish (latest, official Docker Hub image)
+- **Database:** Azure SQL Server `drupalpoc-sql` (centralus, Basic DTU 5) + Azure MySQL `drupalpoc-mysql` (centralus, Burstable B1ms)
+- **Container Orchestration:** Azure Kubernetes Service `drupalpoc-aks` (eastus2, Free tier, Standard_B2s, K8s v1.33.6)
+- **Container Registry:** GitHub Container Registry (GHCR)
+- **CI/CD:** GitHub Actions → GHCR → AKS
+- **Local Development:** DDEV v1.25.0 (PHP 8.4, MariaDB 11.8, Drush 13.7.1)
+- **Azure CLI:** Containerized as DDEV sidecar (`mcr.microsoft.com/azure-cli:latest`) with kubectl — no local Azure CLI install required
+- **Cloud:** Microsoft Azure (Resource Group: `rg-fulleralex47-0403` in eastus2)
+- **Version Control:** GitHub (private repo: [fullera8/DrupalPOC](https://github.com/fullera8/DrupalPOC))
+
+**Planned (Post-POC):**
 - **Authentication:** Azure Active Directory (Entra ID) — institutional SSO
-- **Database:** Azure SQL Server (transactional data) + Azure MySQL (Drupal content)
 - **Cache:** Redis (session + caching at scale)
 - **Search:** Solr or Elasticsearch (training module discovery)
 - **File Storage:** Azure Blob Storage (training videos, simulation assets, reports)
-- **Containerization:** Docker (local via DDEV) → AKS (production)
-- **CI/CD:** GitHub Actions → GHCR → AKS
-- **Cloud:** Microsoft Azure
 - **LTI:** LTI 1.3 compliant (integration with institutional LMS platforms)
-- **Version Control:** GitHub (private repo: [fullera8/DrupalPOC](https://github.com/fullera8/DrupalPOC))
 
 ### Core Feature Areas
 - **Learning Modules:** Short-form security training videos (3–10 min)
@@ -56,8 +64,27 @@ The developer has established enterprise patterns for the following components, 
 - **Container Orchestration:** GHCR for image storage, AKS for deployment, OIDC auth from GitHub Actions to Azure
 - **CI/CD:** GitHub Actions pipeline — build → push to GHCR → deploy to AKS
 
+## Current Progress
+
+| Day | Status | Summary |
+| :--- | :--- | :--- |
+| **Day 1** | ✅ Complete | Azure provisioning (AKS, SQL, MySQL) + Drupal content modeling (Training Module type, quiz webform, sample content, JSON:API + CORS) |
+| **Day 2** | ⬜ Not started | Dockerfiles + Container Registry |
+| **Day 3** | ⬜ Not started | AKS Deployment + .NET Thin API |
+| **Day 4** | ⬜ Not started | Angular Frontend + Integrations |
+| **Day 5** | ⬜ Not started | Dashboard, Demo Data, Polish |
+
+See **[📋 Planning](Planning)** for detailed task tracking.
+
 ## Getting Started
 
 1. Ensure Docker Desktop and DDEV are installed
 2. Clone the repo and run `ddev start`
-3. Read the [💬 Chat Log](ChatLog) for full setup history and architecture decisions
+3. Run setup scripts to configure Drupal content model:
+   ```powershell
+   ddev drush scr scripts/create_training_module_type.php
+   ddev drush scr scripts/create_quiz_webform.php
+   ddev drush scr scripts/seed_training_content.php
+   ddev drush scr scripts/configure_cors.php
+   ```
+4. Read the [💬 Chat Log](ChatLog) for full setup history and architecture decisions

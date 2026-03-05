@@ -488,3 +488,293 @@ DrupalPOC reuses established enterprise patterns from the developer's prior work
 | Dev Environment | VS Code Dev Containers | DDEV (Docker-based, Drupal-optimized) |
 
 **[LLM_CONTEXT: The developer has enterprise experience with .NET 8, Angular, Docker, GHCR, AKS, and GitHub Actions CI/CD. These are proven patterns — do not suggest alternative tools for these components unless the developer asks. The DrupalPOC adaptations extend these patterns with Drupal and GoPhish containers.]**
+
+---
+
+## Day 1 Kickoff — Pre-Implementation Q&A (Mar 4, 2026)
+**[SECTION_METADATA: CONCEPTS=Azure_Provisioning,Drupal_Content_Modeling,GoPhish,Docker,CORS,Working_Agreement | DIFFICULTY=Beginner | RESPONDS_TO: Implementation_How-To, Architectural_Decision]**
+
+### Clarifying Questions & Decisions
+
+Before starting Day 1 implementation, the following questions were raised and resolved:
+
+| # | Topic | Question | Decision |
+| :--- | :--- | :--- | :--- |
+| 1 | **Azure provisioning** | Ready to provision AKS, SQL, MySQL today? | **Yes.** Developer is familiar with Azure. Co-developer (LLM) provides abstracted guidance; developer asks for detail only when needed. |
+| 2 | **Drupal content modeling — who drives?** | Walk-through vs. pair vs. LLM-driven? | **LLM drives the coding.** Developer acts as engineering manager for the POC. Will learn where possible but prioritizes velocity. |
+| 3 | **GoPhish — Docker Hub image vs. custom build?** | Use pre-built image or build from source? | **Docker Hub image (`gophish/gophish`).** Avoid local installation. Aligns with "no works-on-my-machine" philosophy. |
+| 4 | **Angular version** | Pin specific version or use latest? | **Latest stable from Docker.** Less concerned with exact version; compatibility with 3rd-party tools is the priority. |
+| 5 | **.NET 8 SDK** | Installed locally? Need Docker image? | **.NET 8 installed locally.** Will also use Docker image for containerization. Developer's core skill set — low risk. Defer detailed .NET discussion to Day 3. |
+| 6 | **CORS prep for Day 4** | Pre-configure Drupal CORS in `services.yml` now? | **Yes, but minimal.** Get it working enough to avoid starting from scratch on Day 4. Don't over-engineer. |
+
+### Working Agreement
+
+- **Developer role:** Engineering manager. Reviews, approves, executes Azure provisioning commands, asks clarifying questions.
+- **LLM role:** Co-developer. Drives Drupal content modeling, writes code/config, provides Azure provisioning guidance.
+- **Drupal-specific guidance:** Beginner-level (developer has no Drupal experience).
+- **Infrastructure/architecture guidance:** Peer-level (developer has ~10 years enterprise experience).
+- **Docker philosophy:** All services run from container images. No local installations beyond Docker Desktop, DDEV, and core SDKs (.NET 8, Angular CLI).
+
+**[LLM_CONTEXT: The developer is acting as engineering manager during the POC — LLM drives the code. Azure instructions should be abstracted (high-level steps, not screenshot-by-screenshot) unless the developer asks for detail. .NET is deferred to Day 3 and is low risk. GoPhish uses the official Docker Hub image. CORS config should be minimal — just enough to unblock Day 4 Angular integration.]**
+
+---
+
+## Day 1 Implementation — Drupal Content Modeling + Azure Provisioning (Mar 4, 2026)
+**[SECTION_METADATA: CONCEPTS=Drupal,JSON_API,Webform,Content_Modeling,Azure_CLI,CORS,DDEV | DIFFICULTY=Beginner-Intermediate | TOOLS=DDEV,Drush,Composer,Azure_CLI | RESPONDS_TO: Implementation_How-To, Debugging_Troubleshooting]**
+
+### Azure CLI Containerization
+**[DIFFICULTY: Intermediate] [CONCEPTS: Azure_CLI, Docker, DDEV]**
+
+**Decision:** Run Azure CLI from a Docker container (`mcr.microsoft.com/azure-cli:latest`) instead of installing locally.
+
+Created `.ddev/docker-compose.azure-cli.yaml` to add an Azure CLI sidecar service to DDEV:
+- **Image:** `mcr.microsoft.com/azure-cli:latest` from Microsoft Container Registry
+- **Persistent volume:** `azure-cli-config` → `/root/.azure` (login state survives restarts)
+- **Project mount:** `/mnt/project` for file access
+- **Usage:** `ddev exec -s azure-cli az <command>` or `ddev ssh -s azure-cli`
+
+**[LLM_CONTEXT: Azure CLI now runs as a DDEV sidecar container. All `az` commands should be prefixed with `ddev exec -s azure-cli`. Login state persists across `ddev restart` via a named Docker volume.]**
+
+### Azure Resource Provisioning (Developer-Driven)
+**[DIFFICULTY: Intermediate] [CONCEPTS: AKS, Azure_SQL, Azure_MySQL, Azure_Provisioning]**
+
+Azure CLI commands provided for provisioning in this order:
+1. `az login` → authenticate
+2. `az group list` → identify existing resource group + location
+3. `az aks create` → AKS cluster (free tier, 1 node, B2s, `--no-wait`)
+4. `az sql server create` + `az sql db create` → Azure SQL (Basic/DTU 5)
+5. `az sql server firewall-rule create` → allow local dev IP
+6. `az mysql flexible-server create` + `az mysql flexible-server db create` → Azure MySQL (Burstable B1ms)
+7. `az aks get-credentials` + `kubectl get nodes` → verify AKS
+8. Database connectivity verification
+
+**Status:** Developer provisioning Azure resources in parallel with Drupal work.
+
+### Drupal Content Modeling (LLM-Driven)
+**[DIFFICULTY: Beginner] [CONCEPTS: Drupal, JSON_API, Webform, Content_Modeling, CORS]**
+
+All Drupal content modeling was performed via Drush scripts in `scripts/`. This approach avoids PowerShell-to-bash quoting issues and makes the setup repeatable/idempotent.
+
+#### Step 1: Enable JSON:API Module
+```powershell
+ddev drush en jsonapi serialization -y
+```
+JSON:API is in Drupal 11 core but not enabled by default. Enabled along with its `serialization` dependency.
+
+#### Step 2: Install Webform Module
+```powershell
+ddev composer require drupal/webform:6.3.x-dev -W
+ddev drush en webform -y
+```
+**Note:** Webform does not yet have a stable release for Drupal 11. The `6.3.x-dev` branch supports Drupal 11 (locked at commit `13ce2a6`). The `-W` flag allows Composer to update Symfony dependencies (minor bumps from 7.4.4/7.4.5 → 7.4.6).
+
+#### Step 3: Create Training Module Content Type
+**Script:** `scripts/create_training_module_type.php`
+
+Created the `training_module` content type with these fields:
+
+| Field | Machine Name | Type | Notes |
+| :--- | :--- | :--- | :--- |
+| Title | `title` | String (core) | Built into all content types |
+| Description | `field_description` | Long text (`text_long`) | Module summary/overview |
+| Video URL | `field_video_url` | Link (`link`) | YouTube/Vimeo embed URL |
+| Category | `field_category` | Entity reference → `training_category` taxonomy | Multi-value (unlimited cardinality) |
+| Difficulty | `field_difficulty` | List (string) | Values: `beginner`, `intermediate`, `advanced` |
+| Duration | `field_duration` | Integer (unsigned) | Estimated minutes to complete |
+
+Also created `training_category` taxonomy vocabulary with 6 seed terms:
+- Phishing Awareness
+- Social Engineering
+- Password Hygiene
+- Data Handling & Privacy
+- Incident Reporting
+- Physical Security
+
+#### Step 4: Create Phishing Awareness Quiz
+**Script:** `scripts/create_quiz_webform.php`
+
+Created webform `phishing_awareness_quiz` with 5 multiple-choice questions + Twig-computed scoring:
+
+| Question | Topic | Correct Answer |
+| :--- | :--- | :--- |
+| Q1 | Suspicious password verification email | C — Report and don't click |
+| Q2 | Common phishing indicators | C — Slightly different sender domain |
+| Q3 | Definition of spear phishing | B — Targeted attack |
+| Q4 | Urgent bank verification email | B — Call bank directly |
+| Q5 | Identifying phishing URLs | B — Subdomain impersonation |
+
+#### Step 5: Seed Sample Training Content
+**Script:** `scripts/seed_training_content.php`
+
+Created 3 training modules:
+
+| nid | Title | Category | Difficulty | Duration |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | Recognizing Phishing Emails | Phishing Awareness | Beginner | 5 min |
+| 2 | Social Engineering: Manipulation Tactics | Social Engineering | Intermediate | 8 min |
+| 3 | Password Best Practices & MFA | Password Hygiene | Beginner | 6 min |
+
+Each module has a description, YouTube video URL, category reference, difficulty, and duration.
+
+#### Step 6: Verify JSON:API Endpoints
+**Endpoint:** `http://drupalpoc.ddev.site/jsonapi/node/training_module`
+
+Verified: JSON:API returns all 3 training modules with full attributes (`title`, `field_description`, `field_difficulty`, `field_duration`, `field_video_url`) and relationships (`field_category`, `node_type`, `uid`).
+
+**JSON:API response format:** `{ "jsonapi": {...}, "data": [{ "type": "node--training_module", "id": "<uuid>", "attributes": {...}, "relationships": {...} }] }`
+
+#### Step 7: CORS Configuration
+**Script:** `scripts/configure_cors.php`
+
+Copied `default.services.yml` → `services.yml` and enabled CORS:
+
+| Setting | Value | Rationale |
+| :--- | :--- | :--- |
+| `enabled` | `true` | Required for cross-origin Angular SPA |
+| `allowedHeaders` | Content-Type, Authorization, X-Requested-With, Accept | Standard API headers |
+| `allowedMethods` | GET, POST, PATCH, DELETE, OPTIONS | Full CRUD + preflight |
+| `allowedOrigins` | `*` | **POC only** — lock down in production |
+| `exposedHeaders` | Content-Type, Authorization | Angular needs these in responses |
+| `maxAge` | 600 | 10-minute preflight cache |
+| `supportsCredentials` | `true` | Allows cookies/auth headers |
+
+**Verified:** CORS headers present on JSON:API response with `Origin: http://localhost:4200` → `Access-Control-Allow-Origin: http://localhost:4200` ✅
+
+### Scripts Created
+
+All scripts are idempotent (safe to re-run) and live in `scripts/`:
+
+| Script | Purpose |
+| :--- | :--- |
+| `create_training_module_type.php` | Content type + fields + taxonomy vocabulary + seed terms |
+| `create_quiz_webform.php` | Phishing awareness quiz (5 questions + scoring) |
+| `seed_training_content.php` | 3 sample training modules |
+| `configure_cors.php` | CORS configuration in `services.yml` |
+
+**Run all:** `ddev drush scr scripts/<filename>.php`
+
+**[LLM_CONTEXT: All Day 1 Drupal tasks are complete. The Training Module content type has 6 fields (title, description, video_url, category, difficulty, duration). JSON:API is confirmed working at `/jsonapi/node/training_module`. CORS is enabled with permissive wildcard origins (POC only). Webform quiz is created with 5 multiple-choice questions. All setup scripts are in `scripts/` and are idempotent.]**
+
+---
+
+### Azure Resource Provisioning (Mar 4–5, 2026)
+**[DIFFICULTY: Intermediate] [CONCEPTS: AKS, Azure_SQL, Azure_MySQL, Azure_Provisioning, Azure_CLI, Docker]**
+
+#### Azure CLI Containerization Decision
+
+**Decision:** Run all Azure CLI commands from a Docker container (`mcr.microsoft.com/azure-cli:latest`) via DDEV sidecar, not from a local installation.
+
+Created `.ddev/docker-compose.azure-cli.yaml`:
+- **Image:** `mcr.microsoft.com/azure-cli:latest` (MCR)
+- **Entrypoint:** Installs `kubectl` + `kubelogin` via `az aks install-cli` at container startup
+- **Persistent volumes:** `azure-cli-config` (login state at `/root/.azure`) + `kube-config` (kubeconfig at `/root/.kube`)
+- **Usage:** `ddev exec -s azure-cli az <command>` or `ddev exec -s azure-cli kubectl <command>`
+
+**[LLM_CONTEXT: All `az` and `kubectl` commands run inside the azure-cli DDEV sidecar container. Login state and kubeconfig persist across `ddev restart` via named Docker volumes. Do not suggest running `az` or `kubectl` from the host machine.]**
+
+#### Resource Provider Registration
+
+Azure subscriptions require resource providers to be registered before first use. The following providers were registered:
+
+| Provider Namespace | Required By |
+| :--- | :--- |
+| `Microsoft.ContainerService` | AKS cluster |
+| `Microsoft.Sql` | Azure SQL Server + Database |
+| `Microsoft.DBforMySQL` | Azure MySQL Flexible Server |
+| `Microsoft.Network` | VNets, load balancers, public IPs (AKS + DB networking) |
+| `Microsoft.Storage` | Storage account |
+| `Microsoft.Compute` | AKS node VMs |
+| `Microsoft.OperationsManagement` | AKS monitoring dependency |
+| `Microsoft.OperationalInsights` | AKS Log Analytics dependency |
+
+```powershell
+ddev exec -s azure-cli az provider register --namespace <namespace>
+ddev exec -s azure-cli az provider show --namespace <namespace> --query registrationState
+```
+
+**[LLM_CONTEXT: All 8 resource providers are registered. If a new Azure resource type is needed and creation fails with `MissingSubscriptionRegistration`, register the namespace first with `az provider register --namespace <namespace>`.]**
+
+#### AKS Cluster Provisioning
+
+| Setting | Value |
+| :--- | :--- |
+| **Name** | `drupalpoc-aks` |
+| **Resource Group** | `rg-fulleralex47-0403` |
+| **Location** | `eastus2` |
+| **Node Count** | 1 |
+| **VM Size** | `Standard_B2s` |
+| **Tier** | Free |
+| **Kubernetes Version** | v1.33.6 |
+| **Status** | ✅ Succeeded |
+
+```powershell
+ddev exec -s azure-cli az aks create \
+  --resource-group <rg> --name drupalpoc-aks \
+  --node-count 1 --node-vm-size Standard_B2s \
+  --tier free --generate-ssh-keys --location eastus2 --no-wait
+```
+
+**Verification:**
+```powershell
+ddev exec -s azure-cli az aks get-credentials --resource-group <rg> --name drupalpoc-aks
+ddev exec -s azure-cli kubectl get nodes
+# Output: aks-nodepool1-*   Ready   <none>   v1.33.6
+```
+
+#### Azure SQL Server + Database
+
+| Setting | Value |
+| :--- | :--- |
+| **Server Name** | `drupalpoc-sql` |
+| **FQDN** | `***REDACTED_SQL_HOST***` |
+| **Location** | `centralus` |
+| **Database** | `drupalpoc` |
+| **Edition** | Basic (DTU 5) |
+| **Cost** | ~$5/mo |
+| **Status** | ✅ Online |
+
+**Region Issue:** `eastus2` was not accepting new SQL Server creation (capacity constraints). Switched to `centralus`. Cross-region latency is negligible for the POC — the resource group location (`eastus2`) is just a logical container and does not constrain resource placement.
+
+**Naming Conflict:** Initial creation partially provisioned a server in `eastus2`. Azure held a soft-delete lock on the `drupalpoc-sql` name. Resolved by deleting the partial server (`az sql server delete --yes`) and recreating in `centralus`.
+
+**Firewall:** A firewall rule (`AllowLocalDev`) was created to allow the developer's current public IP. This is a dynamic IP — if connectivity breaks, re-check with `curl api.ipify.org` and update the rule.
+
+#### Azure Database for MySQL Flexible Server
+
+| Setting | Value |
+| :--- | :--- |
+| **Server Name** | `drupalpoc-mysql` |
+| **FQDN** | `***REDACTED_MYSQL_HOST***` |
+| **Location** | `centralus` |
+| **Database** | `drupal` |
+| **SKU** | `Standard_B1ms` (Burstable) |
+| **Cost** | ~$6/mo |
+| **Status** | ✅ Ready |
+
+**Public Access:** Configured with the developer's current public IP at creation time.
+
+#### Final Azure Resource Inventory
+
+| Resource | Type | Location | Status |
+| :--- | :--- | :--- | :--- |
+| `rg-fulleralex47-0403` | Resource Group | `eastus2` | ✅ Existing |
+| `drupalpoc-aks` | AKS Cluster (Free, 1x B2s) | `eastus2` | ✅ Succeeded |
+| `drupalpoc-sql` | Azure SQL Server | `centralus` | ✅ Online |
+| `drupalpoc` (database) | Azure SQL Database (Basic DTU 5) | `centralus` | ✅ Online |
+| `drupalpoc-mysql` | MySQL Flexible Server (B1ms) | `centralus` | ✅ Ready |
+| `drupal` (database) | MySQL Database | `centralus` | ✅ Ready |
+
+**Note:** AKS is in `eastus2`, databases are in `centralus` due to capacity constraints. This split is irrelevant for the POC. Production would co-locate all resources.
+
+#### Issues Encountered & Resolutions
+
+| Issue | Error | Resolution |
+| :--- | :--- | :--- |
+| Resource providers not registered | `MissingSubscriptionRegistration` | Registered all 8 required providers via `az provider register` |
+| SQL Server region capacity | `RegionDoesNotAllowProvisioning` in `eastus2` | Switched to `centralus` |
+| SQL Server naming conflict | `InvalidResourceLocation` (partial create in `eastus2`) | Deleted partial server, recreated in `centralus` |
+| `kubectl` not found in azure-cli container | `command not found` | Added `az aks install-cli` to container entrypoint + `kube-config` volume |
+| `kubectl` host machine can't reach AKS | `dial tcp [::1]:8080: connectex: connection refused` | `az aks get-credentials` ran inside container; kubeconfig was not on host. All `kubectl` commands now run via `ddev exec -s azure-cli kubectl` |
+| `rdbms-connect` extension needs `pg_config` | `psycopg2` build failure | Skipped `rdbms-connect`; verified DB status via `az sql db show --query status` and `az mysql flexible-server show --query state` instead |
+
+**[LLM_CONTEXT: All Azure resources are provisioned and verified. AKS is in eastus2, SQL and MySQL are in centralus. All `az` and `kubectl` commands run inside the DDEV azure-cli sidecar. The developer's public IP is dynamic — if DB connectivity breaks, update the firewall rules. Credentials are stored securely and NOT logged in the ChatLog. For connection strings on Day 2-3, use FQDNs: `***REDACTED_SQL_HOST***` (SQL) and `***REDACTED_MYSQL_HOST***` (MySQL).]**

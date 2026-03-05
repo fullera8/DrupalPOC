@@ -70,9 +70,11 @@ graph TB
     end
 
     subgraph "Local Development Only"
-        DDEV["🐳 DDEV<br/>(Local Dev Environment)"]
+        DDEV["🐳 DDEV v1.25.0<br/>(PHP 8.4 · MariaDB 11.8 · Drush 13.7.1)"]
         Mailhog["📬 Mailhog<br/>(Email Capture)"]
+        AzureCLI["☁️ Azure CLI Sidecar<br/>(mcr.microsoft.com/azure-cli)<br/>kubectl · az commands"]
         DDEV --> Mailhog
+        DDEV --> AzureCLI
     end
 
     DotNet --> AzureSQL
@@ -98,6 +100,7 @@ graph TB
     style GitHubActions fill:#24292e,color:#fff
     style Mailhog fill:#4caf50,color:#fff
     style DDEV fill:#00aa00,color:#fff
+    style AzureCLI fill:#0078d4,color:#fff
 ```
 
 ### Service Inventory
@@ -106,10 +109,13 @@ graph TB
 | :--- | :--- | :--- | :--- | :--- |
 | **Angular SPA** | AKS (2 replicas) | — | Training module viewer, quiz UI, basic dashboard | Full reporting dashboard, simulation inbox, collaboration |
 | **.NET 8 Web API** | AKS (2 replicas) | Azure SQL Server | Thin stub: health check, save simulation result, get scores (2–3 endpoints) | Full business logic: auth, LTI 1.3, scoring engine, analytics aggregation |
-| **Drupal 11 Headless** | AKS (1 replica) | Azure MySQL | Content types for training modules + quizzes via JSON:API + Webform | Full content modeling, workflow, permissions, tenant-scoped content |
+| **Drupal 11 Headless** | AKS (1 replica) | Azure MySQL | Training Module content type (6 fields), phishing quiz webform (5 questions), 6 taxonomy categories, JSON:API + CORS configured | Full content modeling, workflow, permissions, tenant-scoped content |
 | **GoPhish** | AKS (1 replica) | SQLite (internal) | Basic phishing campaign with click tracking via REST API | Custom templates, scheduled campaigns, SMTP integration |
 | **Mailhog** | DDEV only (local) | — | Captures GoPhish emails during local dev | Replaced by real SMTP in production |
 | **YouTube/Vimeo** | External (embeds) | — | Unlisted training videos embedded in Drupal content | Azure Blob Storage or Azure Media Services |
+| **Azure CLI** | DDEV sidecar | — | Azure provisioning + kubectl from inside Docker (no local install) | Not needed in production |
+
+> **Note:** Webform 6.3.x-dev is the only branch compatible with Drupal 11 (stable releases only support D10). Locked at commit `13ce2a6`.
 
 ### Data Flow
 
@@ -137,17 +143,19 @@ Developer Push (GitHub)
 
 **Pattern:** OIDC auth from GitHub Actions to Azure, GHCR for image storage, AKS for deployment.
 
-### Azure Resources Required (POC)
+### Azure Resources (POC) — Provisioned
 
-See **[📋 Planning](Planning)** for the full provisioning checklist with status tracking.
+All resources provisioned on **Day 1 (Mar 4, 2026)**. See **[📋 Planning](Planning)** for the full checklist.
 
-| Resource | Tier | Purpose |
-| :--- | :--- | :--- |
-| **AKS Cluster** | Free tier (1 node pool, B2s VMs) | Container orchestration |
-| **Azure SQL Server** | Basic / DTU 5 (~$5/mo) | Transactional data |
-| **Azure Database for MySQL** | Burstable B1ms (~$6/mo) | Drupal content store |
-| **Resource Group** | Existing | Organization |
-| **Storage Account** | Existing | AKS diagnostics |
+| Resource | Name | Location | Tier | FQDN / Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Resource Group** | `rg-fulleralex47-0403` | eastus2 | — | Logical container for all resources |
+| **AKS Cluster** | `drupalpoc-aks` | eastus2 | Free tier (1 node, Standard_B2s) | K8s v1.33.6, 1 node Ready |
+| **Azure SQL Server** | `drupalpoc-sql` | centralus | Basic / DTU 5 (~$5/mo) | `***REDACTED_SQL_HOST***` · DB: `drupalpoc` |
+| **Azure MySQL** | `drupalpoc-mysql` | centralus | Burstable B1ms (~$6/mo) | `***REDACTED_MYSQL_HOST***` · DB: `drupal` |
+| **Storage Account** | (existing) | eastus2 | — | AKS diagnostics |
+
+> **Region note:** SQL and MySQL are in `centralus` because `eastus2` had capacity constraints for SQL Server provisioning during Day 1. The resource group location (`eastus2`) is a logical designation only — resources can be in any region.
 
 ### POC Build vs. Borrow Strategy
 
@@ -187,12 +195,12 @@ See **[📋 Planning](Planning)** for the full post-POC backlog with checkboxes.
 
 **Full task breakdown:** See **[📋 Planning](Planning)**
 
-| Day | Focus | Deliverable |
-| :--- | :--- | :--- |
-| **Day 1** | Azure provisioning (AKS, SQL, MySQL) + Drupal content modeling | Infrastructure + content types |
-| **Day 2** | Dockerfiles for all services + GHCR push | Container images in registry |
-| **Day 3** | AKS deployment manifests + .NET thin API | Services running on AKS |
-| **Day 4** | Angular scaffold + connect to Drupal JSON:API + GoPhish | Working frontend |
-| **Day 5** | Dashboard, demo data, polish | Pitch-ready demo |
+| Day | Focus | Deliverable | Status |
+| :--- | :--- | :--- | :--- |
+| **Day 1** | Azure provisioning (AKS, SQL, MySQL) + Drupal content modeling | Infrastructure + content types | ✅ Complete |
+| **Day 2** | Dockerfiles for all services + GHCR push | Container images in registry | ⬜ Not started |
+| **Day 3** | AKS deployment manifests + .NET thin API | Services running on AKS | ⬜ Not started |
+| **Day 4** | Angular scaffold + connect to Drupal JSON:API + GoPhish | Working frontend | ⬜ Not started |
+| **Day 5** | Dashboard, demo data, polish | Pitch-ready demo | ⬜ Not started |
 
-**[LLM_CONTEXT: This is the POC architecture. It proves the microservice pattern on AKS with real Azure backing services (SQL + MySQL). The .NET API is intentionally thin (2-3 endpoints) to stay within the <1 week timeline. GoPhish is the "wow factor" for the pitch — a real phishing simulation engine. Post-POC, the .NET API expands to handle auth, LTI, scoring, analytics, and tenant isolation. Do not suggest adding deferred features back into the POC scope. For detailed task tracking, see [Planning](Planning).]**
+**[LLM_CONTEXT: This is the POC architecture. Day 1 is COMPLETE — all Azure resources provisioned and verified, Drupal content model built (Training Module type with 6 fields, phishing quiz webform with 5 questions, 6 taxonomy categories, 3 sample nodes seeded, JSON:API + CORS configured). Webform 6.3.x-dev is the only D11-compatible branch (locked at commit 13ce2a6). Azure CLI runs as a DDEV sidecar container — no local install needed. SQL and MySQL are in centralus due to eastus2 capacity constraints. The .NET API is intentionally thin (2-3 endpoints) to stay within the <1 week timeline. GoPhish is the "wow factor" for the pitch — a real phishing simulation engine. webform_rest module will be needed on Day 4 for quiz API exposure. Post-POC, the .NET API expands to handle auth, LTI, scoring, analytics, and tenant isolation. Do not suggest adding deferred features back into the POC scope. For detailed task tracking, see [Planning](Planning).]**

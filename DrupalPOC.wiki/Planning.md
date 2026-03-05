@@ -14,9 +14,9 @@
 
 | Status | Resource | Tier | Notes |
 | :--- | :--- | :--- | :--- |
-| - [ ] | AKS Cluster | Free tier (1 node pool, B2s VMs) | Container orchestration |
-| - [ ] | Azure SQL Server + Database | Basic / DTU 5 (~$5/mo) | Transactional data (scores, completions) |
-| - [ ] | Azure Database for MySQL | Burstable B1ms (~$6/mo) | Drupal content store |
+| - [x] | AKS Cluster | Free tier (1 node pool, B2s VMs) | `drupalpoc-aks` in `eastus2`, K8s v1.33.6 |
+| - [x] | Azure SQL Server + Database | Basic / DTU 5 (~$5/mo) | `drupalpoc-sql` + `drupalpoc` DB in `centralus` |
+| - [x] | Azure Database for MySQL | Burstable B1ms (~$6/mo) | `drupalpoc-mysql` + `drupal` DB in `centralus` |
 | - [x] | Resource Group | Existing | Already provisioned |
 | - [x] | Storage Account | Existing | Already provisioned |
 | - [ ] | GHCR Access from AKS | Image pull secret | So AKS can pull container images from GitHub |
@@ -28,19 +28,19 @@
 ### Day 1 — Infrastructure + Drupal Content Modeling
 
 **Azure Provisioning:**
-- [ ] Create AKS cluster (free tier, 1 node pool, B2s VMs)
-- [ ] Create Azure SQL Server + `drupalpoc` database
-- [ ] Create Azure Database for MySQL + `drupal` database
-- [ ] Verify `kubectl` connectivity to AKS
-- [ ] Verify database connectivity from local machine
+- [x] Create AKS cluster (free tier, 1 node pool, B2s VMs)
+- [x] Create Azure SQL Server + `drupalpoc` database
+- [x] Create Azure Database for MySQL + `drupal` database
+- [x] Verify `kubectl` connectivity to AKS
+- [x] Verify database connectivity from local machine
 
 **Drupal Content Modeling:**
-- [ ] Enable JSON:API module (core, should be enabled by default)
-- [ ] Install and configure Webform module (`ddev composer require drupal/webform`)
-- [ ] Create "Training Module" content type (title, description, video embed URL, category, difficulty)
-- [ ] Create "Quiz" webform (multiple choice questions, scoring)
-- [ ] Create sample training content (2–3 modules + 1 quiz)
-- [ ] Verify JSON:API endpoints return content (`/jsonapi/node/training_module`)
+- [x] Enable JSON:API module (core, should be enabled by default)
+- [x] Install and configure Webform module (`ddev composer require drupal/webform`)
+- [x] Create "Training Module" content type (title, description, video embed URL, category, difficulty)
+- [x] Create "Quiz" webform (multiple choice questions, scoring)
+- [x] Create sample training content (2–3 modules + 1 quiz)
+- [x] Verify JSON:API endpoints return content (`/jsonapi/node/training_module`)
 
 ### Day 2 — Dockerfiles + Container Registry
 

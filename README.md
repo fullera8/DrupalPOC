@@ -93,21 +93,23 @@ For the full architecture diagram (Mermaid), service inventory, build-vs-borrow 
 | Frontend | Angular + Angular Material + Chart.js | 19.x |
 | Business API | .NET 8 Web API (thin stub) | 8.x |
 | CMS | Drupal (headless, JSON:API) | 11.3.3 |
+| Quizzes & Assessments | Drupal Webform (6.3.x-dev) | 6.3.x-dev (only D11-compatible branch) |
 | Phishing Engine | GoPhish | Latest |
 | Dependency Mgmt | Composer | 2.x |
 | CLI | Drush | 13.7.1 |
 
 ### Infrastructure & DevOps
 
-| Component | Technology |
-| :--- | :--- |
-| Container Orchestration | Azure Kubernetes Service (AKS) — Free tier |
-| Transactional Database | Azure SQL Server — Basic DTU 5 |
-| CMS Database | Azure Database for MySQL — Burstable B1ms |
-| Container Registry | GitHub Container Registry (GHCR) |
-| CI/CD | GitHub Actions |
-| Local Development | DDEV v1.25.0 (Docker-based) |
-| Local Email Testing | Mailhog (built into DDEV) |
+| Component | Technology | Details |
+| :--- | :--- | :--- |
+| Container Orchestration | Azure Kubernetes Service (AKS) — Free tier | `drupalpoc-aks` in eastus2, K8s v1.33.6, Standard_B2s |
+| Transactional Database | Azure SQL Server — Basic DTU 5 | `drupalpoc-sql` in centralus |
+| CMS Database | Azure Database for MySQL — Burstable B1ms | `drupalpoc-mysql` in centralus |
+| Container Registry | GitHub Container Registry (GHCR) | `ghcr.io/fullera8/drupalpoc-*` |
+| CI/CD | GitHub Actions | Build → GHCR → AKS |
+| Local Development | DDEV v1.25.0 (Docker-based) | PHP 8.4, MariaDB 11.8, Drush 13.7.1 |
+| Azure CLI | Containerized DDEV sidecar | `mcr.microsoft.com/azure-cli:latest` + kubectl |
+| Local Email Testing | Mailhog (built into DDEV) | Captures GoPhish emails locally |
 
 ### Planned (Post-POC)
 
@@ -134,6 +136,11 @@ DrupalPOC/
 │   ├── Planning.md          # Day 1–5 task tracking with checkboxes
 │   ├── ChatLog.md           # Running conversation log for LLM context
 │   └── Metadata-Legend.md   # Tag definitions for wiki metadata
+├── scripts/                 # Idempotent PHP setup scripts (run via `ddev drush scr`)
+│   ├── create_training_module_type.php   # Training Module content type + 6 fields + taxonomy
+│   ├── create_quiz_webform.php           # Phishing awareness quiz (5 questions + scoring)
+│   ├── seed_training_content.php         # 3 sample training modules
+│   └── configure_cors.php               # CORS configuration for Angular SPA
 ├── recipes/                 # Drupal recipes
 ├── vendor/                  # Composer dependencies (git-ignored)
 └── web/                     # Drupal webroot (core is git-ignored)
@@ -150,15 +157,13 @@ DrupalPOC/
 
 ## Prerequisites
 
-| Tool | Install |
-| :--- | :--- |
-| **Docker Desktop** | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) |
-| **DDEV** | [ddev.readthedocs.io/en/stable/](https://ddev.readthedocs.io/en/stable/) |
-| **Composer** | [getcomposer.org](https://getcomposer.org/) |
-| **Git** | [git-scm.com](https://git-scm.com/) |
-| **Node.js + npm** | [nodejs.org](https://nodejs.org/) (for Angular) |
-| **.NET 8 SDK** | [dotnet.microsoft.com](https://dotnet.microsoft.com/download/dotnet/8.0) |
-| **Azure CLI** | [learn.microsoft.com/cli/azure/install](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) |
+| Tool | Install | Notes |
+| :--- | :--- | :--- |
+| **Docker Desktop** | [docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop/) | Required for DDEV |
+| **DDEV** | [ddev.readthedocs.io/en/stable/](https://ddev.readthedocs.io/en/stable/) | Local Drupal environment |
+| **Git** | [git-scm.com](https://git-scm.com/) | Version control |
+
+> **Note:** Azure CLI, kubectl, Composer, Drush, PHP, and MariaDB are all provided inside DDEV containers — no local installation required. Node.js and .NET 8 SDK are only needed when working on the Angular and .NET services (Day 2+).
 
 ---
 
@@ -175,12 +180,18 @@ ddev start
 # 3. Install PHP dependencies
 ddev composer install
 
-# 4. Open Drupal in browser
-ddev launch
-
-# 5. (First time only) Install Drupal site
+# 4. (First time only) Install Drupal site
 #    ⚠️ WARNING: This wipes the database — only run on a fresh setup
 ddev drush site:install --account-name=admin --account-pass=admin -y
+
+# 5. Set up Drupal content model (idempotent — safe to re-run)
+ddev drush scr scripts/create_training_module_type.php
+ddev drush scr scripts/create_quiz_webform.php
+ddev drush scr scripts/seed_training_content.php
+ddev drush scr scripts/configure_cors.php
+
+# 6. Open Drupal in browser
+ddev launch
 ```
 
 **Local site URL:** `http://drupalpoc.ddev.site`

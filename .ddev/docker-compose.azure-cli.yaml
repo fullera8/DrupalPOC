@@ -1,0 +1,26 @@
+services:
+  azure-cli:
+    container_name: ddev-${DDEV_SITENAME}-azure-cli
+    image: mcr.microsoft.com/azure-cli:latest
+    restart: "no"
+    # Install kubectl at startup, then keep the container running
+    stdin_open: true
+    tty: true
+    command: ["sh", "-c", "az aks install-cli 2>/dev/null; sleep infinity"]
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: $DDEV_APPROOT
+    volumes:
+      # Persist Azure CLI login state across restarts
+      - azure-cli-config:/root/.azure
+      # Persist kubeconfig across restarts
+      - kube-config:/root/.kube
+      # Mount the project root so you can access project files from the CLI
+      - ".:/mnt/ddev_config"
+      - "../:/mnt/project"
+    environment:
+      - DDEV_SITENAME=${DDEV_SITENAME}
+
+volumes:
+  azure-cli-config:
+  kube-config:
