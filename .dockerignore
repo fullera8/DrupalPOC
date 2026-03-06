@@ -1,0 +1,36 @@
+# =============================================================================
+# Docker build context exclusions
+# =============================================================================
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# DDEV (local dev only)
+.ddev
+
+# Wiki / docs
+DrupalPOC.wiki
+*.md
+LICENSE.txt
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Drupal sensitive files (baked in via docker/drupal/settings.php instead)
+web/sites/*/settings.php
+web/sites/*/settings.local.php
+web/sites/*/settings.ddev.php
+web/sites/*/services.yml
+web/sites/*/files
+
+# Misc
+powershell.txt

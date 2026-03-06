@@ -119,6 +119,10 @@ Every `[CONCEPTS: ...]` value used across the wiki, organized by domain. **Canon
 - **`Azure_SQL`** — Azure SQL Server — managed relational database for transactional data
 - **`Microservices`** — Microservice architecture pattern (4 services on AKS)
 - **`Docker`** — Container runtime. _Aliases: `Docker_Desktop` (Windows desktop app)_
+- **`Dockerfile`** — Container image build definition. Multi-stage builds used for all services. _Aliases: `Multi_Stage_Build`_
+- **`GHCR`** — GitHub Container Registry — stores container images at `ghcr.io/fullera8/drupalpoc-*`. _Aliases: `Container_Registry`_
+- **`Nginx`** — Reverse proxy / static file server. Used as Drupal PHP-FPM proxy and Angular SPA server. _Aliases: `nginx`_
+- **`PHP_FPM`** — PHP FastCGI Process Manager. Drupal runtime (PHP 8.4-FPM). Paired with Nginx sidecar. _Aliases: `PHP_8.4`_
 - **`CI_CD`** — Continuous Integration / Continuous Deployment (GitHub Actions → GHCR → AKS)
 - **`Git`** — Version control. _Aliases: `GitHub` (hosting), `Version_Control`, `Gitignore`_
 - **`Mermaid`** — Diagram-as-code language for architecture diagrams (renders on GitHub)
@@ -176,6 +180,8 @@ All architecture decisions are tagged with `[ARCHITECTURE_DECISIONS: <name>]`. *
 | `Platform_Direction` | General LMS vs security awareness training | **Security awareness** (KnowBe4 style) | ChatLog |
 | `POC_Scope` | What's included in the < 1 week POC | **4 AKS services + Azure SQL + MySQL** | Architecture, ChatLog |
 | `Build_vs_Borrow` | Build custom code vs use existing tools | **80% borrow, 20% build** (8 borrowed, 4 built) | Architecture, ChatLog |
+| `Drupal_Base_Image` | Official `drupal:11` image vs `php:8.4-fpm` + nginx | **php:8.4-fpm + nginx** (production-oriented, microservice pattern) | ChatLog |
+| `GoPhish_Image` | Custom GoPhish build vs upstream image | **Upstream `gophish/gophish:latest`** unmodified | ChatLog |
 
 ---
 
@@ -192,6 +198,10 @@ When a concept has multiple alias forms, use the **canonical form** (first colum
 | `LTI_1.3` | `LTI` | Version-specific preferred |
 | `Azure_AD` | `SSO` | `Azure_AD` is more specific |
 | `Docker` | `Docker_Desktop` | Use `Docker_Desktop` for the Windows app specifically |
+| `Dockerfile` | `Multi_Stage_Build` | Use `Dockerfile` for the build definition; `Multi_Stage_Build` for the pattern |
+| `GHCR` | `Container_Registry` | `GHCR` preferred; `Container_Registry` is generic |
+| `Nginx` | `nginx` | Case-insensitive match |
+| `PHP_FPM` | `PHP_8.4` | Use `PHP_FPM` for the runtime process; `PHP_8.4` for version-specific |
 | `Git` | `GitHub`, `Version_Control`, `Gitignore` | Use specific variant when contextually appropriate |
 | `Sprint_Planning` | `Planning`, `Task_Tracking`, `Timeline` | All acceptable; use what fits |
 | `Wiki` | `Documentation`, `Metadata`, `Tiered_Documentation`, `Tiered_System` | All relate to the documentation system |

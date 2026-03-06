@@ -42,18 +42,26 @@
 - [x] Create sample training content (2–3 modules + 1 quiz)
 - [x] Verify JSON:API endpoints return content (`/jsonapi/node/training_module`)
 
-### Day 2 — Dockerfiles + Container Registry
+### Day 2 — Dockerfiles + Container Registry (Mar 5, 2026) ✅
 
 **Dockerfiles:**
-- [ ] Create Dockerfile for Angular SPA (multi-stage: Node build → Nginx serve)
-- [ ] Create Dockerfile for .NET 8 Web API (multi-stage: SDK build → runtime)
-- [ ] Create Dockerfile for Drupal 11 (based on official PHP image + Composer install)
-- [ ] Create Dockerfile for GoPhish (based on official GoPhish image or custom build)
+- [x] Create Dockerfile for Angular SPA (multi-stage: Node 22 build → Nginx serve) — placeholder, needs Day 4 source
+- [x] Create Dockerfile for .NET 8 Web API (multi-stage: SDK build → ASP.NET runtime) — placeholder, needs Day 3 source
+- [x] Create Dockerfile for Drupal 11 (3-stage: Composer → PHP 8.4-FPM → Nginx sidecar) — produces 2 images
+- [x] Create Dockerfile for GoPhish (thin wrapper on `gophish/gophish:latest`)
+- [x] Create `.dockerignore` for clean build context
+- [x] Create `docker/drupal/settings.php` — production settings with Azure MySQL via env vars
+- [x] Create `docker/drupal/nginx.conf` — Drupal front-controller + PHP-FPM proxy
+- [x] Create `docker/angular/nginx.conf` — SPA routing + `/healthz` health check
 
 **Container Registry:**
-- [ ] Build all 4 images locally and test
-- [ ] Push images to GHCR (`ghcr.io/fullera8/drupalpoc-*`)
-- [ ] Verify images are accessible from GHCR
+- [x] Build 3 images locally (`drupalpoc-gophish`, `drupalpoc-drupal`, `drupalpoc-drupal-nginx`)
+- [x] Smoke test Drupal image (PHP extensions + Drush verified)
+- [x] Authenticate to GHCR (GitHub PAT with `write:packages`)
+- [x] Push 3 images to GHCR (`ghcr.io/fullera8/drupalpoc-*`)
+- [x] Verify images accessible via `docker manifest inspect`
+- [ ] Build + push `drupalpoc-api` (blocked on Day 3 .NET scaffold)
+- [ ] Build + push `drupalpoc-angular` (blocked on Day 4 Angular scaffold)
 
 ### Day 3 — AKS Deployment + .NET Thin API
 

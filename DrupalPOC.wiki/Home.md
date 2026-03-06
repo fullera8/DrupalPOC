@@ -32,6 +32,7 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 - **Container Orchestration:** Azure Kubernetes Service `drupalpoc-aks` (eastus2, Free tier, Standard_B2s, K8s v1.33.6)
 - **Container Registry:** GitHub Container Registry (GHCR)
 - **CI/CD:** GitHub Actions → GHCR → AKS
+- **Container Images (Day 2):** `ghcr.io/fullera8/drupalpoc-gophish`, `drupalpoc-drupal` (PHP 8.4-FPM), `drupalpoc-drupal-nginx` — all pushed to GHCR
 - **Local Development:** DDEV v1.25.0 (PHP 8.4, MariaDB 11.8, Drush 13.7.1)
 - **Azure CLI:** Containerized as DDEV sidecar (`mcr.microsoft.com/azure-cli:latest`) with kubectl — no local Azure CLI install required
 - **Cloud:** Microsoft Azure (Resource Group: `rg-fulleralex47-0403` in eastus2)
@@ -69,7 +70,7 @@ The developer has established enterprise patterns for the following components, 
 | Day | Status | Summary |
 | :--- | :--- | :--- |
 | **Day 1** | ✅ Complete | Azure provisioning (AKS, SQL, MySQL) + Drupal content modeling (Training Module type, quiz webform, sample content, JSON:API + CORS) |
-| **Day 2** | ⬜ Not started | Dockerfiles + Container Registry |
+| **Day 2** | ✅ Complete | Dockerfiles for all 4 services + 3 images built & pushed to GHCR (`drupalpoc-gophish`, `drupalpoc-drupal`, `drupalpoc-drupal-nginx`) |
 | **Day 3** | ⬜ Not started | AKS Deployment + .NET Thin API |
 | **Day 4** | ⬜ Not started | Angular Frontend + Integrations |
 | **Day 5** | ⬜ Not started | Dashboard, Demo Data, Polish |

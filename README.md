@@ -106,6 +106,7 @@ For the full architecture diagram (Mermaid), service inventory, build-vs-borrow 
 | Transactional Database | Azure SQL Server — Basic DTU 5 | `drupalpoc-sql` in centralus |
 | CMS Database | Azure Database for MySQL — Burstable B1ms | `drupalpoc-mysql` in centralus |
 | Container Registry | GitHub Container Registry (GHCR) | `ghcr.io/fullera8/drupalpoc-*` |
+| Container Images | GoPhish, Drupal (PHP 8.4-FPM), Drupal Nginx, .NET API, Angular | 3 of 5 built and pushed to GHCR |
 | CI/CD | GitHub Actions | Build → GHCR → AKS |
 | Local Development | DDEV v1.25.0 (Docker-based) | PHP 8.4, MariaDB 11.8, Drush 13.7.1 |
 | Azure CLI | Containerized DDEV sidecar | `mcr.microsoft.com/azure-cli:latest` + kubectl |
@@ -128,25 +129,38 @@ For the full architecture diagram (Mermaid), service inventory, build-vs-borrow 
 
 ```
 DrupalPOC/
-├── composer.json            # PHP dependencies (Drupal, Drush)
-├── README.md                # ← You are here
-├── DrupalPOC.wiki/          # Project wiki (architecture, planning, chat log)
+├── .dockerignore             # Docker build context exclusions
+├── composer.json             # PHP dependencies (Drupal, Drush)
+├── README.md                 # ← You are here
+├── docker/                   # Dockerfiles and container configs (Day 2)
+│   ├── angular/
+│   │   ├── Dockerfile        # Multi-stage: Node 22 build → Nginx serve
+│   │   └── nginx.conf        # SPA routing + /healthz health check
+│   ├── api/
+│   │   └── Dockerfile        # Multi-stage: .NET 8 SDK build → ASP.NET runtime
+│   ├── drupal/
+│   │   ├── Dockerfile        # 3-stage: Composer → PHP 8.4-FPM → Nginx sidecar
+│   │   ├── nginx.conf        # Drupal front-controller + PHP-FPM proxy + /healthz
+│   │   └── settings.php      # Production settings (Azure MySQL via env vars)
+│   └── gophish/
+│       └── Dockerfile        # Thin wrapper on gophish/gophish:latest
+├── DrupalPOC.wiki/           # Project wiki (architecture, planning, chat log)
 │   ├── Home.md
-│   ├── Architecture.md      # Full architecture diagram & decisions
-│   ├── Planning.md          # Day 1–5 task tracking with checkboxes
-│   ├── ChatLog.md           # Running conversation log for LLM context
-│   └── Metadata-Legend.md   # Tag definitions for wiki metadata
-├── scripts/                 # Idempotent PHP setup scripts (run via `ddev drush scr`)
+│   ├── Architecture.md       # Full architecture diagram & decisions
+│   ├── Planning.md           # Day 1–5 task tracking with checkboxes
+│   ├── ChatLog.md            # Running conversation log for LLM context
+│   └── Metadata-Legend.md    # Tag definitions for wiki metadata
+├── scripts/                  # Idempotent PHP setup scripts (run via `ddev drush scr`)
 │   ├── create_training_module_type.php   # Training Module content type + 6 fields + taxonomy
 │   ├── create_quiz_webform.php           # Phishing awareness quiz (5 questions + scoring)
 │   ├── seed_training_content.php         # 3 sample training modules
 │   └── configure_cors.php               # CORS configuration for Angular SPA
-├── recipes/                 # Drupal recipes
-├── vendor/                  # Composer dependencies (git-ignored)
-└── web/                     # Drupal webroot (core is git-ignored)
+├── recipes/                  # Drupal recipes
+├── vendor/                   # Composer dependencies (git-ignored)
+└── web/                      # Drupal webroot (core is git-ignored)
     ├── index.php
-    ├── modules/             # Custom & contrib modules
-    ├── themes/              # Custom & contrib themes
+    ├── modules/              # Custom & contrib modules
+    ├── themes/               # Custom & contrib themes
     ├── profiles/
     └── sites/
 ```

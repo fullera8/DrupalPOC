@@ -778,3 +778,160 @@ ddev exec -s azure-cli kubectl get nodes
 | `rdbms-connect` extension needs `pg_config` | `psycopg2` build failure | Skipped `rdbms-connect`; verified DB status via `az sql db show --query status` and `az mysql flexible-server show --query state` instead |
 
 **[LLM_CONTEXT: All Azure resources are provisioned and verified. AKS is in eastus2, SQL and MySQL are in centralus. All `az` and `kubectl` commands run inside the DDEV azure-cli sidecar. The developer's public IP is dynamic — if DB connectivity breaks, update the firewall rules. Credentials are stored securely and NOT logged in the ChatLog. For connection strings on Day 2-3, use FQDNs: `***REDACTED_SQL_HOST***` (SQL) and `***REDACTED_MYSQL_HOST***` (MySQL).]**
+
+---
+
+## Day 2 — Dockerfiles + Container Registry (Mar 5, 2026)
+**[SECTION_METADATA: CONCEPTS=Docker,Dockerfile,GHCR,Drupal,Angular,DotNet8,GoPhish,Nginx,PHP_FPM,Multi_Stage_Build | DIFFICULTY=Intermediate | TOOLS=Docker,Docker_Desktop,PowerShell | RESPONDS_TO: Implementation_How-To]**
+
+### Planning & Clarifications
+
+**Day 2 Goal:** Create production-oriented Dockerfiles for all 4 services, build locally, push to GHCR (`ghcr.io/fullera8/drupalpoc-*`).
+
+#### Clarifying Questions & Decisions
+
+| # | Question | Decision | Rationale |
+| :--- | :--- | :--- | :--- |
+| 1 | **Scaffold Angular/.NET projects today?** | **No** — Dockerfiles only. Placeholder stubs to containerize. Pull scaffolding forward only if time allows. | Stay focused on Day 2 scope (Dockerfiles + Registry). Scaffolding is Day 3/4 work. |
+| 2 | **Drupal base image: `drupal:11` official vs `php-fpm` + nginx?** | **`php:8.4-fpm` + nginx (multi-stage Composer install)** | POC's selling point is the microservice architecture. The closer to production, the better. Official `drupal:11` image hides too much and uses Apache. |
+| 3 | **GoPhish: custom Dockerfile or upstream image?** | **Upstream `gophish/gophish` as-is** — no custom config. | No config work planned until go-live. Wrap in a thin Dockerfile only if GHCR tagging requires it. |
+| 4 | **GHCR PAT (Personal Access Token)?** | **Check existing PAT first** — may already have one with `write:packages`. | Avoid unnecessary token regeneration. |
+| 5 | **Build environment?** | **Local `docker build`** — manual push to GHCR. | CI/CD (GitHub Actions) is post-POC. Local builds are fine for a 4-image POC. |
+| 6 | **Drupal DB connection to Azure MySQL?** | **Wire it in now** — environment variables for `***REDACTED_MYSQL_HOST***` baked into the image config (values injected at runtime). | Avoids rework on Day 3. Connection string uses env vars so secrets stay out of the image. |
+
+#### Build Order (by complexity)
+
+1. **GoPhish** — simplest (upstream image, tag and push)
+2. **.NET 8 Web API** — proven pattern (multi-stage SDK → runtime), minimal placeholder project
+3. **Angular SPA** — proven pattern (Node build → nginx serve), minimal placeholder project
+4. **Drupal 11** — most complex (PHP 8.4-FPM + nginx + Composer + custom modules + Azure MySQL config)
+
+#### Image Naming Convention
+
+All images pushed to GHCR under `ghcr.io/fullera8/`:
+
+| Service | Image Name | Tag |
+| :--- | :--- | :--- |
+| GoPhish | `ghcr.io/fullera8/drupalpoc-gophish` | `latest` |
+| .NET 8 API | `ghcr.io/fullera8/drupalpoc-api` | `latest` |
+| Angular SPA | `ghcr.io/fullera8/drupalpoc-angular` | `latest` |
+| Drupal 11 | `ghcr.io/fullera8/drupalpoc-drupal` | `latest` |
+
+**[LLM_CONTEXT: Day 2 decisions are RESOLVED. Drupal uses php:8.4-fpm + nginx (NOT the official drupal:11 image). GoPhish uses the upstream image unmodified. Angular and .NET get placeholder stubs only — full scaffolding is Day 3-4. All images are built locally with `docker build` and pushed manually to GHCR. The AKS image pull secret is Day 3 scope. Do not suggest CI/CD automation or GitHub Actions for Day 2.]**
+
+### Dockerfile Creation & Image Builds
+
+#### Directory Structure
+
+```
+docker/
+├── angular/
+│   ├── Dockerfile         # Multi-stage: Node 22 build → Nginx serve
+│   └── nginx.conf         # SPA routing + /healthz endpoint
+├── api/
+│   └── Dockerfile         # Multi-stage: .NET 8 SDK build → ASP.NET runtime
+├── drupal/
+│   ├── Dockerfile         # Multi-stage: Composer install → PHP 8.4-FPM → Nginx
+│   ├── nginx.conf         # Drupal front-controller + PHP-FPM proxy + /healthz
+│   └── settings.php       # Production settings — Azure MySQL via env vars
+└── gophish/
+    └── Dockerfile         # FROM gophish/gophish:latest (upstream, unmodified)
+```
+
+#### GoPhish Dockerfile
+Thin wrapper around `gophish/gophish:latest`. No custom config. Exists so we can tag consistently in GHCR and layer config overrides later (post-POC).
+
+#### .NET 8 API Dockerfile (Placeholder)
+Multi-stage build: `mcr.microsoft.com/dotnet/sdk:8.0` → `mcr.microsoft.com/dotnet/aspnet:8.0`. Expects source in `src/DrupalPOC.Api/`. Cannot build until Day 3 scaffolding.
+
+#### Angular SPA Dockerfile (Placeholder)
+Multi-stage build: `node:22-alpine` → `nginx:alpine`. Expects source in `src/angular/`. Includes custom `nginx.conf` with SPA fallback routing and `/healthz` health check. Cannot build until Day 4 scaffolding.
+
+#### Drupal 11 Dockerfile (3-Stage Build)
+
+**Architecture:** Three build stages in a single Dockerfile:
+
+| Stage | Base Image | Purpose | Output |
+| :--- | :--- | :--- | :--- |
+| `composer` | `composer:2` | Install PHP deps via Composer, run `drupal:scaffold` | `/app/vendor/`, `/app/web/` |
+| `drupal` | `php:8.4-fpm` | PHP-FPM runtime with extensions + Drupal code | `drupalpoc-drupal:latest` |
+| `nginx` | `nginx:alpine` | Serve static assets, proxy `.php` to PHP-FPM | `drupalpoc-drupal-nginx:latest` |
+
+**PHP Extensions Installed:**
+`gd` (freetype+jpeg+webp), `opcache`, `pdo`, `pdo_mysql`, `zip`, `xml`, `mbstring`, `curl`
+
+**Key Design Decisions:**
+- `--ignore-platform-reqs` in Composer stage — the `composer:2` image doesn't have `ext-gd`; extensions are in the runtime stage
+- `--no-scripts` first, then `composer drupal:scaffold` after copying full project — prevents Drupal scaffold from failing before `web/` exists
+- Production `settings.php` reads ALL database config from environment variables (`DRUPAL_DB_HOST`, `DRUPAL_DB_PORT`, `DRUPAL_DB_NAME`, `DRUPAL_DB_USER`, `DRUPAL_DB_PASSWORD`, `DRUPAL_HASH_SALT`)
+- Azure MySQL SSL certificate path is commented out in `settings.php` — enable for production hardening
+- Drush 13.7.1 available in the container at `vendor/bin/drush`
+
+**.dockerignore** created at project root to exclude `.git`, `.ddev`, wiki, markdown files, IDE config, and sensitive files (`settings.php`, `settings.ddev.php`) from the build context.
+
+#### Build Results
+
+| Image | Tag | Size | Status |
+| :--- | :--- | :--- | :--- |
+| `ghcr.io/fullera8/drupalpoc-gophish` | `latest` | 377 MB | ✅ Built |
+| `ghcr.io/fullera8/drupalpoc-drupal` | `latest` | 1.25 GB | ✅ Built + tested |
+| `ghcr.io/fullera8/drupalpoc-drupal-nginx` | `latest` | 420 MB | ✅ Built |
+| `ghcr.io/fullera8/drupalpoc-api` | `latest` | — | ⏳ Dockerfile ready, needs Day 3 source |
+| `ghcr.io/fullera8/drupalpoc-angular` | `latest` | — | ⏳ Dockerfile ready, needs Day 4 source |
+
+**Smoke Test (Drupal image):**
+- `php -m` confirms: `gd`, `pdo_mysql`, `opcache`, `mbstring`, `curl`, `zip`, `xml` ✅
+- `vendor/bin/drush --version` → `Drush Commandline Tool 13.7.1.0` ✅
+
+#### Build Issue & Resolution
+
+| Issue | Error | Resolution |
+| :--- | :--- | :--- |
+| Composer stage missing `ext-gd` | `drupal/core 11.3.3 requires ext-gd * -> it is missing from your system` | Added `--ignore-platform-reqs` to Composer install — extensions are in the PHP-FPM runtime stage, not the Composer stage |
+
+### GHCR Authentication
+
+**Status:** No existing PAT or stored Docker credential found. `$env:CR_PAT` was not set, and `~/.docker/config.json` had no entry for `ghcr.io`.
+
+**Required:** GitHub PAT (classic) with `write:packages` scope. Generate at: GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic).
+
+**Login command:**
+```powershell
+$env:CR_PAT = "ghp_your_token_here"
+echo $env:CR_PAT | docker login ghcr.io -u fullera8 --password-stdin
+```
+
+**Result:** PAT generated, `docker login ghcr.io` succeeded.
+
+### GHCR Push
+
+All 3 built images pushed to GHCR and verified via `docker manifest inspect`:
+
+| Image | Digest (sha256) | Status |
+| :--- | :--- | :--- |
+| `ghcr.io/fullera8/drupalpoc-gophish:latest` | `043a1f9fa369...` | ✅ Pushed |
+| `ghcr.io/fullera8/drupalpoc-drupal:latest` | `fe54222ce39f...` | ✅ Pushed |
+| `ghcr.io/fullera8/drupalpoc-drupal-nginx:latest` | `5c238cc726ec...` | ✅ Pushed |
+
+**Push commands:**
+```powershell
+docker push ghcr.io/fullera8/drupalpoc-gophish:latest
+docker push ghcr.io/fullera8/drupalpoc-drupal-nginx:latest
+docker push ghcr.io/fullera8/drupalpoc-drupal:latest
+```
+
+### Day 2 Summary
+
+| Task | Status |
+| :--- | :--- |
+| Create `docker/` directory structure | ✅ Complete |
+| GoPhish Dockerfile | ✅ Built + pushed |
+| .NET 8 API Dockerfile (placeholder) | ✅ Created (build on Day 3) |
+| Angular SPA Dockerfile (placeholder) | ✅ Created (build on Day 4) |
+| Drupal 11 Dockerfile (PHP-FPM + Nginx, 3-stage) | ✅ Built + pushed (2 images) |
+| `.dockerignore` | ✅ Created |
+| `docker/drupal/settings.php` (Azure MySQL via env vars) | ✅ Created |
+| GHCR authentication | ✅ PAT configured, login succeeded |
+| Push to GHCR | ✅ All 3 images verified in registry |
+
+**[LLM_CONTEXT: Day 2 is COMPLETE. 3 of 5 images are built and pushed to GHCR. The .NET and Angular images have Dockerfiles ready but cannot be built until their source projects are scaffolded (Day 3-4). The Drupal image produces TWO containers: `drupalpoc-drupal` (PHP-FPM, port 9000) and `drupalpoc-drupal-nginx` (nginx, port 80). On AKS these will be sidecar containers in the same pod. The settings.php is configured for env-var injection — no secrets in the image. GHCR credentials are stored in Docker's credential manager. For Day 3: create AKS image pull secret for GHCR, scaffold .NET 8 project, build + push API image, write K8s deployment manifests.]**
