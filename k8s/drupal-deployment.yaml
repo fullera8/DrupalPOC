@@ -1,0 +1,111 @@
+# =============================================================================
+# Drupal 11 Headless CMS — Deployment + Service (Sidecar Pattern)
+# =============================================================================
+# Pod contains two containers sharing the same network namespace:
+#   1. drupal   — PHP 8.4-FPM (port 9000, FastCGI) — runs Drupal PHP code
+#   2. nginx    — Nginx reverse proxy (port 80) — serves static files, proxies
+#                 PHP requests to php-fpm at 127.0.0.1:9000
+#
+# The nginx.conf is overridden via ConfigMap (drupal-nginx-conf) to use
+# 127.0.0.1:9000 instead of the Docker Compose hostname "drupal:9000".
+#
+# Shared emptyDir volume for Drupal user-uploaded files (sites/default/files).
+# Connects to Azure MySQL via env vars from drupal-secrets.
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drupal
+  namespace: drupalpoc
+  labels:
+    app: drupal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: drupal
+  template:
+    metadata:
+      labels:
+        app: drupal
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        # --- PHP-FPM container (Drupal application) ---
+        - name: drupal
+          image: ghcr.io/fullera8/drupalpoc-drupal:latest
+          ports:
+            - containerPort: 9000
+          envFrom:
+            - secretRef:
+                name: drupal-secrets
+          volumeMounts:
+            - name: drupal-files
+              mountPath: /var/www/html/web/sites/default/files
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+        # --- Nginx sidecar (reverse proxy for PHP-FPM) ---
+        - name: nginx
+          image: ghcr.io/fullera8/drupalpoc-drupal-nginx:latest
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: drupal-files
+              mountPath: /var/www/html/web/sites/default/files
+              readOnly: true
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+      volumes:
+        - name: drupal-files
+          emptyDir: {}
+        - name: nginx-conf
+          configMap:
+            name: drupal-nginx-conf
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: drupal-service
+  namespace: drupalpoc
+  labels:
+    app: drupal
+spec:
+  selector:
+    app: drupal
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  type: ClusterIP

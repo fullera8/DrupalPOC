@@ -935,3 +935,463 @@ docker push ghcr.io/fullera8/drupalpoc-drupal:latest
 | Push to GHCR | ✅ All 3 images verified in registry |
 
 **[LLM_CONTEXT: Day 2 is COMPLETE. 3 of 5 images are built and pushed to GHCR. The .NET and Angular images have Dockerfiles ready but cannot be built until their source projects are scaffolded (Day 3-4). The Drupal image produces TWO containers: `drupalpoc-drupal` (PHP-FPM, port 9000) and `drupalpoc-drupal-nginx` (nginx, port 80). On AKS these will be sidecar containers in the same pod. The settings.php is configured for env-var injection — no secrets in the image. GHCR credentials are stored in Docker's credential manager. For Day 3: create AKS image pull secret for GHCR, scaffold .NET 8 project, build + push API image, write K8s deployment manifests.]**
+
+---
+
+## Day 3 — Pre-Implementation Discussions (Mar 6, 2026)
+**[SECTION_METADATA: CONCEPTS=DotNet8,AKS,Docker,DDEV,PHP_FPM,Nginx,Project_Structure,Database_Architecture | DIFFICULTY=Beginner-Intermediate | RESPONDS_TO: Architectural_Decision, Implementation_How-To]**
+
+### Where Does the .NET Source Project Live? (Decision: `src/DrupalPOC.Api/`)
+**[DIFFICULTY: Beginner] [ARCHITECTURE_DECISIONS: Project_Structure, Source_Layout]**
+
+**Question:** Should the .NET API source code live inside DDEV, or at the repo root?
+
+**Decision:** The .NET source project goes at `src/DrupalPOC.Api/` in the **repo root**, not inside DDEV.
+
+**Key Insight: DDEV Is Drupal's Container — Not Everyone's Container**
+
+DDEV is a **purpose-built Docker environment for Drupal specifically**. When `ddev start` runs, it spins up:
+- A **web container** (PHP 8.4 + Apache/nginx) that serves Drupal
+- A **database container** (MariaDB 11.8) that stores Drupal content
+- A **router** (Traefik) that maps `drupalpoc.ddev.site` to the web container
+- Any **sidecar containers** added (like the Azure CLI container)
+
+All of these are tuned for PHP/Drupal. DDEV doesn't know what .NET is, doesn't have the .NET SDK, and has no reason to.
+
+**Each service has its own independent lifecycle:**
+
+```
+Repository Root (DrupalPOC/)
+│
+├── .ddev/                    ← DDEV config (Drupal's local dev environment)
+├── web/                      ← Drupal webroot (Drupal's source code)
+├── composer.json             ← Drupal's PHP dependencies
+├── scripts/                  ← Drupal setup scripts
+│
+├── src/
+│   ├── DrupalPOC.Api/        ← .NET 8 Web API (its own project, its own Dockerfile)
+│   └── angular/              ← Angular SPA (its own project, its own Dockerfile)
+│
+├── docker/
+│   ├── api/Dockerfile        ← Builds .NET into a container image
+│   ├── angular/Dockerfile    ← Builds Angular into a container image
+│   ├── drupal/Dockerfile     ← Builds Drupal into a container image
+│   └── gophish/Dockerfile    ← Wraps GoPhish into a container image
+│
+└── k8s/                      ← Kubernetes manifests (Day 3)
+```
+
+**Why they're separated:**
+
+1. **DDEV is a local development tool only** — it doesn't exist on AKS. It's how we run Drupal locally to author content and test JSON:API.
+2. **.NET and Angular have their own SDKs** — the .NET 8 SDK is installed locally on the developer's Windows machine. The API is developed using `dotnet` CLI directly.
+3. **Docker is the production equalizer** — when each Dockerfile builds, it packages the service into a self-contained image. DDEV, the local .NET SDK, Node.js — none of that matters in production. Only the images matter.
+
+**How services communicate:**
+
+| Environment | Drupal | .NET API | Angular |
+| :--- | :--- | :--- | :--- |
+| **Local dev** | `ddev start` → `http://drupalpoc.ddev.site` | `dotnet run` → `http://localhost:5000` | `ng serve` → `http://localhost:4200` |
+| **AKS (production)** | K8s Service → `http://drupal-service:80` | K8s Service → `http://api-service:80` | K8s Service → `http://angular-service:80` |
+
+Locally, they talk via HTTP on `localhost` with different ports. On AKS, they talk via Kubernetes DNS names. The Ingress controller routes external traffic to the right service based on URL path.
+
+**[LLM_CONTEXT: RESOLVED. DDEV is Drupal-only. .NET source lives at `src/DrupalPOC.Api/`. Angular source lives at `src/angular/`. Each service has its own Dockerfile under `docker/`. K8s manifests go in `k8s/`. The .NET Dockerfile (`docker/api/Dockerfile`) expects `COPY` from `src/DrupalPOC.Api/`. Do not suggest putting .NET or Angular code inside DDEV or the Drupal webroot.]**
+
+---
+
+### Database Architecture — POC vs. Production
+**[DIFFICULTY: Intermediate] [CONCEPTS: Azure_SQL, Database_Architecture, Budget_Planning] [ARCHITECTURE_DECISIONS: POC_Database_Schema]**
+
+**Context:** The developer needs a realistic production database design for budget estimation and compute planning, while keeping the POC minimal.
+
+#### POC Schema (What We Build on Day 3)
+
+Minimal — one table, three endpoints, proves .NET ↔ Azure SQL end-to-end:
+
+```
+Azure SQL: drupalpoc database
+└── SimulationResults table
+    ├── Id              (int, PK, identity)
+    ├── UserId          (nvarchar - who took the action)
+    ├── CampaignId      (nvarchar - which phishing campaign / quiz)
+    ├── Score           (int - percentage or points)
+    ├── CompletedAt     (datetime2 - when they finished)
+    └── CreatedAt       (datetime2 - record creation timestamp)
+```
+
+Three endpoints against it: `GET /health`, `POST /api/results` (save), `GET /api/scores` (read).
+
+#### Production Schema Design (For Budget Document)
+
+Post-POC, Azure SQL expands to support the full platform:
+
+| Table / Domain | Purpose | Scale Estimate |
+| :--- | :--- | :--- |
+| **Tenants** | One row per TSUS institution (Sam Houston, Lamar, Sul Ross, etc.) | ~10 rows |
+| **Users** | All students + faculty across all institutions. FK to Tenant. | 100,000–120,000 rows |
+| **TrainingModules** | Metadata for training content (mirrors Drupal, .NET owns completion tracking) | ~50–200 rows |
+| **Enrollments** | User × Module assignment (who needs to take what) | Millions (120K users × ~10 modules each) |
+| **Completions** | User × Module completion record with timestamp and score | Millions (grows over time, never deleted) |
+| **SimulationCampaigns** | Phishing campaign definitions (linked to GoPhish campaign IDs) | Hundreds |
+| **SimulationResults** | Per-user result for each campaign (clicked? reported? ignored?) | Millions (120K users × multiple campaigns/year) |
+| **QuizAttempts** | Per-user quiz attempt with individual answer records | Millions |
+| **ComplianceSnapshots** | Periodic roll-up per tenant: completion rates, click rates, scores | Thousands (monthly snapshots per tenant) |
+| **AuditLog** | Who did what, when (for compliance/regulatory) | Tens of millions over time |
+
+#### Capacity Planning Notes
+
+- **Storage growth rate:** ~120K users × ~4 campaigns/year × ~10 training modules ≈ 1.2M new completion rows + 480K simulation rows per year, plus audit logs.
+- **Compute tier:** POC Basic DTU 5 (~5 transactions/sec). Production at 120K users during peak (semester start, compliance deadline) needs **Standard S3 (100 DTUs)** minimum, or **vCore General Purpose 4–8 vCores** for elasticity.
+- **High availability:** Production needs geo-redundant backups and potentially a read replica for the reporting dashboard (heavy reads shouldn't impact transactional writes).
+- **MySQL (Drupal):** Drupal's content volume is small (hundreds of nodes, not millions). Burstable B1ms is adequate even in production. Drupal's heavy lifting is content authoring, not transactional throughput.
+
+**Full budget details:** See **[💰 Budget](Budget)**
+
+**[LLM_CONTEXT: POC uses a single SimulationResults table in Azure SQL. Production schema has ~10 tables with million-row scale. The budget analysis is in Budget.md. Do not expand the POC schema beyond SimulationResults — keep it minimal to prove the pattern. The developer will use the production schema estimates for budget/compute planning in the pitch.]**
+
+---
+
+### Why Drupal Needs an Nginx Sidecar (PHP-FPM Architecture)
+**[DIFFICULTY: Beginner] [CONCEPTS: PHP_FPM, Nginx, Drupal, Docker, Sidecar_Pattern] [ARCHITECTURE_DECISIONS: Drupal_Pod_Architecture]**
+
+**Question:** Why does Drupal need an Nginx reverse proxy sidecar on AKS? Why can't PHP serve HTTP directly?
+
+**Context:** The developer is experienced with .NET and Angular (both have built-in web servers) but unfamiliar with how PHP serves web requests. This was a critical knowledge gap.
+
+#### .NET and Node.js: Built-in Web Servers
+
+When you run a .NET API with `dotnet run`, the **Kestrel** web server starts up inside the application process. It listens on a port, accepts HTTP requests, routes them to controllers, and returns HTTP responses. Same with Node.js/Express or Angular's dev server. **The application IS the web server.**
+
+#### PHP: No Built-in Production Web Server
+
+PHP doesn't work that way. **PHP-FPM** (FastCGI Process Manager) is a process pool that:
+- Sits in memory waiting for work
+- Accepts requests **only via the FastCGI protocol** (not HTTP) on port 9000
+- Processes the PHP file
+- Returns the output back via FastCGI
+
+**PHP-FPM cannot accept an HTTP request from a browser.** It speaks a different protocol. It needs something in front of it that:
+1. Accepts the HTTP request from the browser/client
+2. Decides if it's a PHP request or a static file (CSS, JS, images)
+3. If PHP → forwards to PHP-FPM via FastCGI
+4. If static → serves the file directly (much faster than PHP processing)
+5. Returns the response to the client
+
+**That "something in front" is Nginx.**
+
+#### The .NET Analogy
+
+| PHP World | .NET Equivalent |
+| :--- | :--- |
+| PHP-FPM (application runtime) | Kestrel (application runtime) |
+| Nginx (reverse proxy in front) | IIS / Azure App Service reverse proxy (in front of Kestrel) |
+
+The key difference: Kestrel *can* accept HTTP directly — PHP-FPM literally *cannot*. The Nginx sidecar isn't optional for Drupal; it's **architecturally required**.
+
+#### Why Nginx + PHP-FPM (Not Apache)
+
+| | Apache + mod_php | Nginx + PHP-FPM |
+| :--- | :--- | :--- |
+| **Architecture** | PHP lives inside Apache | PHP is a separate process pool |
+| **Memory usage** | Every Apache worker loads PHP (even for static files) | Only PHP-FPM workers use PHP memory |
+| **Static file performance** | Apache serves them, but with PHP overhead loaded | Nginx serves them natively, very fast |
+| **Scaling** | Monolithic — Apache and PHP scale together | Can tune PHP-FPM pool size independently |
+| **Production standard** | Legacy | Modern production standard for PHP |
+
+The official `drupal:11` Docker image uses Apache. We chose `php:8.4-fpm` + nginx because it's the production-grade pattern and aligns with the microservice pitch (Day 2 architecture decision).
+
+#### Sidecar Pattern on AKS
+
+On AKS, the two containers share the same network and filesystem within a single pod:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Drupal Pod                                              │
+│                                                          │
+│  ┌──────────────────┐    ┌─────────────────────────────┐ │
+│  │  nginx container  │    │  php-fpm container          │ │
+│  │  (port 80)        │───▶│  (port 9000, FastCGI)       │ │
+│  │                   │    │                             │ │
+│  │  Serves static    │    │  Runs Drupal PHP code       │ │
+│  │  files (CSS/JS)   │    │                             │ │
+│  │                   │    │  Returns HTML/JSON to nginx  │ │
+│  │  Routes *.php to  │    │                             │ │
+│  │  PHP-FPM          │    │                             │ │
+│  └──────────────────┘    └─────────────────────────────┘ │
+│           │                        │                     │
+│           └────── shared volume ───┘                     │
+│                  (Drupal webroot via emptyDir)            │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Why sidecar (same pod), not separate Deployments:**
+- They **must** share the filesystem — nginx needs to read Drupal's CSS/JS/image files directly, and needs the PHP files to know which ones to forward to FPM
+- They **must** share the network — nginx talks to PHP-FPM on `localhost:9000` within the pod
+- They scale together — you never want 3 nginx and 1 PHP-FPM, or vice versa
+
+**[LLM_CONTEXT: RESOLVED. Drupal on AKS uses the sidecar container pattern: `drupalpoc-drupal` (PHP 8.4-FPM, port 9000) + `drupalpoc-drupal-nginx` (nginx, port 80) in the same pod, sharing an emptyDir volume for the Drupal webroot. PHP-FPM cannot accept HTTP — nginx is architecturally required. This is NOT optional. The K8s Deployment manifest for Drupal must define both containers in the same pod spec with a shared volume. The Kubernetes Service for Drupal should target port 80 (nginx), not port 9000 (PHP-FPM).]**
+
+---
+
+### Day 3 Decisions Summary
+**[DIFFICULTY: Beginner] [ARCHITECTURE_DECISIONS: Day_3_Pre_Implementation]**
+
+| # | Topic | Decision |
+| :--- | :--- | :--- |
+| 1 | .NET source location | `src/DrupalPOC.Api/` at repo root. DDEV is Drupal-only. |
+| 2 | POC database schema | Single `SimulationResults` table in Azure SQL. Production schema documented in Budget.md for compute estimation. |
+| 3 | Ingress strategy | Nginx ingress controller with path-based routing. Scaled load balancing deferred to post-POC. |
+| 4 | Drupal pod architecture | Sidecar pattern: PHP-FPM + Nginx in same pod, shared emptyDir volume. Nginx is architecturally required (PHP-FPM cannot accept HTTP). |
+| 5 | Build order | .NET scaffold first, then K8s manifests. Deploy all 4 services together. |
+| 6 | TLS/hostname | Plain HTTP with AKS external IP for POC. Hostname on Day 5 if polish time allows. |
+
+**[LLM_CONTEXT: All Day 3 pre-implementation decisions are resolved. .NET goes in `src/DrupalPOC.Api/`. POC DB is minimal (1 table). Drupal uses sidecar pod (PHP-FPM + Nginx). Nginx ingress for path-based routing. No TLS for POC. Build order: .NET scaffold → build/push image → K8s manifests → deploy all services.]**
+
+---
+
+## Day 3 — Implementation (Mar 7, 2026)
+**[SECTION_METADATA: CONCEPTS=DotNet8,AKS,Kubernetes,Docker,EF_Core,Azure_SQL,GHCR | DIFFICULTY=Intermediate | RESPONDS_TO: Implementation_How-To]**
+
+### .NET 8 Web API Scaffold
+**[DIFFICULTY: Intermediate] [CONCEPTS: DotNet8, EF_Core, Azure_SQL, Minimal_APIs]**
+
+#### Project Creation
+
+Scaffolded from repo root using .NET 8.0.418 SDK:
+
+```powershell
+dotnet new webapi --name DrupalPOC.Api --output src/DrupalPOC.Api --framework net8.0
+dotnet add src/DrupalPOC.Api package Microsoft.EntityFrameworkCore.SqlServer --version 8.0.24
+dotnet add src/DrupalPOC.Api package Microsoft.EntityFrameworkCore.Design --version 8.0.24
+```
+
+Deleted auto-generated `WeatherForecast.cs` and `DrupalPOC.Api.http` template files.
+
+#### Architecture: Minimal APIs (No Controllers)
+
+For a 3-endpoint POC, Minimal APIs are the right choice. No `Controllers/` folder, no base classes — endpoints are defined inline in `Program.cs`.
+
+#### Source Files
+
+| File | Purpose |
+| :--- | :--- |
+| `src/DrupalPOC.Api/DrupalPOC.Api.csproj` | .NET 8 project, EF Core 8.0.24 (SqlServer + Design) |
+| `src/DrupalPOC.Api/Models/SimulationResult.cs` | EF Core entity: `Id`, `UserId`, `CampaignId`, `Score`, `CompletedAt`, `CreatedAt` |
+| `src/DrupalPOC.Api/Data/AppDbContext.cs` | DbContext with single `DbSet<SimulationResult>` |
+| `src/DrupalPOC.Api/Program.cs` | Service registration, middleware, 3 endpoints |
+| `src/DrupalPOC.Api/appsettings.json` | Default config with placeholder connection string (tracked in git) |
+| `src/DrupalPOC.Api/appsettings.Development.json` | Real Azure SQL credentials (.gitignored) |
+
+#### Endpoints
+
+| Method | Path | Description |
+| :--- | :--- | :--- |
+| `GET` | `/health` | Returns `{ status, service, timestamp }` — K8s liveness/readiness probe target |
+| `POST` | `/api/results` | Saves a `SimulationResult` to Azure SQL, returns 201 + created entity |
+| `GET` | `/api/scores` | Returns all results ordered by `CompletedAt` descending |
+
+#### Key Design Decisions
+
+| Decision | Rationale |
+| :--- | :--- |
+| `EnsureCreated()` on startup | Auto-creates `SimulationResults` table on first connection. No migrations needed for POC. |
+| No `UseHttpsRedirection()` | TLS terminates at the AKS ingress controller. Container-to-container traffic is plain HTTP inside the cluster. |
+| CORS: `AllowAnyOrigin/Method/Header` | Wide open for POC. Angular SPA on a different origin needs this. Lock down post-POC. |
+| No silent DB fallback | If Azure SQL is unreachable, the app crashes immediately. No in-memory fallback — fail loudly. |
+| Port 8080 in container, 5000 locally | ASP.NET 8 defaults to 8080 in Docker. Local dev uses `--urls http://localhost:5000`. |
+
+#### Connection String Strategy
+
+The .NET configuration system supports hierarchical overrides:
+
+| Layer | File / Mechanism | Value |
+| :--- | :--- | :--- |
+| Default (baked into image) | `appsettings.json` | `Password=REPLACE_VIA_ENV_VAR` (placeholder) |
+| Local dev | `appsettings.Development.json` (.gitignored) | Real Azure SQL credentials |
+| AKS production | Env var `ConnectionStrings__DefaultConnection` | Injected from K8s Secret |
+
+The double-underscore `__` in the env var name maps to the `:` separator in .NET's configuration hierarchy (`ConnectionStrings:DefaultConnection`).
+
+#### Local Test Results
+
+All 3 endpoints tested against live Azure SQL (`***REDACTED_SQL_HOST***`):
+
+| Test | Result |
+| :--- | :--- |
+| `GET /health` | `{ "status": "healthy", "service": "drupalpoc-api", "timestamp": "2026-03-07T03:34:48Z" }` |
+| `POST /api/results` (sample payload) | 201 — `{ "id": 1, "userId": "jdoe@txstate.edu", "campaignId": "camp-001", "score": 85 }` |
+| `GET /api/scores` | Returns inserted row(s) ordered by `CompletedAt` desc |
+
+`EnsureCreated()` successfully connected to Azure SQL and auto-created the `SimulationResults` table on first startup. Azure SQL firewall rule from Day 1 still active.
+
+### Docker Image Build + Push (.NET API)
+**[DIFFICULTY: Beginner] [CONCEPTS: Docker, GHCR, Multi_Stage_Build]**
+
+Built using the Day 2 Dockerfile (`docker/api/Dockerfile`) — multi-stage: `sdk:8.0` → `aspnet:8.0`:
+
+```powershell
+docker build -t ghcr.io/fullera8/drupalpoc-api:latest -f docker/api/Dockerfile .
+docker push ghcr.io/fullera8/drupalpoc-api:latest
+```
+
+Added `**/bin` and `**/obj` to `.dockerignore` to exclude .NET build artifacts from the Docker build context.
+
+**All 4 GHCR images now available:**
+
+| Image | Status |
+| :--- | :--- |
+| `ghcr.io/fullera8/drupalpoc-gophish:latest` | ✅ Pushed (Day 2) |
+| `ghcr.io/fullera8/drupalpoc-drupal:latest` | ✅ Pushed (Day 2) |
+| `ghcr.io/fullera8/drupalpoc-drupal-nginx:latest` | ✅ Pushed (Day 2) |
+| `ghcr.io/fullera8/drupalpoc-api:latest` | ✅ Pushed (Day 3) |
+| `ghcr.io/fullera8/drupalpoc-angular:latest` | ⏳ Day 4 |
+
+### Kubernetes Manifests
+**[DIFFICULTY: Intermediate-Advanced] [CONCEPTS: AKS, Kubernetes, Ingress, Sidecar_Pattern, Secrets]**
+
+Created 8 manifest files in `k8s/`:
+
+| File | Resources | Notes |
+| :--- | :--- | :--- |
+| `namespace.yaml` | `Namespace: drupalpoc` | All resources scoped to this namespace |
+| `secrets.yaml` | `Secret: api-secrets`, `Secret: drupal-secrets` | Placeholder values — replace before applying. Includes `kubectl create` commands for CLI-based creation. |
+| `configmaps.yaml` | `ConfigMap: drupal-nginx-conf`, `ConfigMap: angular-placeholder` | Nginx conf overrides `fastcgi_pass` for sidecar; Angular placeholder HTML |
+| `api-deployment.yaml` | `Deployment: api`, `Service: api-service` | 1 replica, port 80→8080, connection string from Secret, health probes at `/health` |
+| `drupal-deployment.yaml` | `Deployment: drupal`, `Service: drupal-service` | Sidecar pattern: php-fpm + nginx in one pod. Shared `emptyDir` for uploaded files. Nginx conf from ConfigMap. Health probes at `/healthz`. |
+| `angular-deployment.yaml` | `Deployment: angular`, `Service: angular-service` | Uses `nginx:alpine` with placeholder page (ConfigMap). Swap to GHCR image on Day 4. |
+| `gophish-deployment.yaml` | `Deployment: gophish`, `Service: gophish-service` | Ports 3333 (admin, HTTPS) + 8080 (phish). TCP probe (self-signed cert). Access via `kubectl port-forward`. |
+| `ingress.yaml` | `Ingress: drupalpoc-ingress` | Nginx ingress, path-based routing: `/api`→api, `/health`→api, `/jsonapi`→drupal, `/`→angular |
+
+#### Nginx ConfigMap Override (Sidecar Fix)
+
+The baked-in Drupal nginx.conf uses `fastcgi_pass drupal:9000` (Docker Compose hostname). In a K8s sidecar pod, both containers share the same network namespace, so PHP-FPM is at `127.0.0.1:9000`. The `drupal-nginx-conf` ConfigMap provides the corrected config, mounted into the nginx container at `/etc/nginx/conf.d/default.conf`.
+
+#### Ingress Routing
+
+| Path | Service | Notes |
+| :--- | :--- | :--- |
+| `/api/*` | `api-service:80` | .NET API — `/api/results`, `/api/scores` |
+| `/health` | `api-service:80` | .NET health check (exact match) |
+| `/jsonapi/*` | `drupal-service:80` | Drupal JSON:API — headless content delivery |
+| `/` (default) | `angular-service:80` | Angular SPA catch-all |
+
+Admin-only services accessed via `kubectl port-forward`:
+- **Drupal admin:** `kubectl port-forward -n drupalpoc svc/drupal-service 8080:80` → `http://localhost:8080/user/login`
+- **GoPhish admin:** `kubectl port-forward -n drupalpoc svc/gophish-service 3333:3333` → `https://localhost:3333`
+
+#### Deployment Command Sequence
+
+```bash
+# 1. Create namespace
+kubectl apply -f k8s/namespace.yaml
+
+# 2. Create GHCR image pull secret
+kubectl create secret docker-registry ghcr-secret \
+  --namespace=drupalpoc \
+  --docker-server=ghcr.io \
+  --docker-username=fullera8 \
+  --docker-password=<GITHUB_PAT>
+
+# 3. Create secrets (replace placeholder values first)
+kubectl apply -f k8s/secrets.yaml
+
+# 4. Create ConfigMaps
+kubectl apply -f k8s/configmaps.yaml
+
+# 5. Deploy services
+kubectl apply -f k8s/api-deployment.yaml
+kubectl apply -f k8s/drupal-deployment.yaml
+kubectl apply -f k8s/angular-deployment.yaml
+kubectl apply -f k8s/gophish-deployment.yaml
+
+# 6. Install nginx ingress controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.1/deploy/static/provider/cloud/deploy.yaml
+
+# 7. Create ingress
+kubectl apply -f k8s/ingress.yaml
+
+# 8. Verify
+kubectl get pods -n drupalpoc
+kubectl get svc -n ingress-nginx ingress-nginx-controller
+```
+
+**[LLM_CONTEXT: Day 3 implementation is complete. .NET API scaffolded, tested locally, Docker image built and pushed to GHCR (4 of 5 images now available). K8s manifests created for all 4 services + ingress. The manifests have NOT been applied to AKS yet — secrets need real values and the deployment commands need to be run via `ddev exec -s azure-cli`. The Drupal nginx ConfigMap fixes `fastcgi_pass` from Docker Compose hostname to `127.0.0.1:9000` for sidecar pod networking. Angular uses a placeholder `nginx:alpine` image until Day 4. GoPhish and Drupal admin are accessed via `kubectl port-forward` (not through ingress). Next steps: apply manifests to AKS, verify pods running, test external access via ingress IP.]**
+
+---
+
+### AKS Deployment (Mar 7, 2026)
+**[SECTION_METADATA: CONCEPTS=AKS,Kubernetes,kubectl,Ingress,Secrets,GHCR | DIFFICULTY=Intermediate | TOOLS=DDEV,azure-cli_sidecar,kubectl | RESPONDS_TO: Implementation_How-To,Debugging_Troubleshooting]**
+
+#### Mount Path Discovery
+
+The azure-cli DDEV sidecar doesn't mount the project at `/var/www/html/` (that's the web container). Inspecting `.ddev/docker-compose.azure-cli.yaml` revealed:
+```yaml
+volumes:
+  - ".:/mnt/ddev_config"
+  - "../:/mnt/project"
+```
+K8s manifest files are accessible at `/mnt/project/k8s/` inside the sidecar container.
+
+#### Deployment Execution
+
+All commands ran via `ddev exec -s azure-cli <command>`:
+
+1. **Namespace:** `kubectl apply -f /mnt/project/k8s/namespace.yaml` → `namespace/drupalpoc created`
+
+2. **GHCR pull secret:** `kubectl create secret docker-registry ghcr-secret --namespace=drupalpoc --docker-server=ghcr.io --docker-username=fullera8 --docker-password=<PAT>` → `secret/ghcr-secret created`
+
+3. **API secrets:** `kubectl create secret generic api-secrets --namespace=drupalpoc --from-literal=ConnectionStrings__DefaultConnection=<Azure SQL connection string>` → `secret/api-secrets created`
+
+4. **Drupal secrets:** `kubectl create secret generic drupal-secrets --namespace=drupalpoc` with `--from-literal` for DRUPAL_DB_HOST, DRUPAL_DB_PORT, DRUPAL_DB_NAME, DRUPAL_DB_USER, DRUPAL_DB_PASSWORD, DRUPAL_HASH_SALT → `secret/drupal-secrets created`
+
+5. **ConfigMaps:** `kubectl apply -f /mnt/project/k8s/configmaps.yaml` → `configmap/drupal-nginx-conf created`, `configmap/angular-placeholder created`
+
+6. **Deployments + Services:**
+   - `kubectl apply -f /mnt/project/k8s/api-deployment.yaml` → `deployment.apps/api created`, `service/api-service created`
+   - `kubectl apply -f /mnt/project/k8s/drupal-deployment.yaml` → `deployment.apps/drupal created`, `service/drupal-service created`
+   - `kubectl apply -f /mnt/project/k8s/angular-deployment.yaml` → `deployment.apps/angular created`, `service/angular-service created`
+   - `kubectl apply -f /mnt/project/k8s/gophish-deployment.yaml` → `deployment.apps/gophish created`, `service/gophish-service created`
+
+7. **Nginx ingress controller:** `kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.1/deploy/static/provider/cloud/deploy.yaml` → 19 resources created (namespace, serviceaccounts, RBAC, controller deployment, webhook)
+
+8. **Ingress:** `kubectl apply -f /mnt/project/k8s/ingress.yaml` → `ingress.networking.k8s.io/drupalpoc-ingress created` (first attempt failed with webhook not ready; succeeded on retry after controller pod reached Running state)
+
+#### Azure SQL Firewall Fix
+
+API pod initially entered `CrashLoopBackOff`. Logs showed:
+```
+Cannot open server 'drupalpoc-sql' requested by the login.
+Client with IP address '20.69.205.212' is not allowed to access the server.
+```
+
+Fix: Added AKS egress IP to Azure SQL firewall:
+```bash
+az sql server firewall-rule create --resource-group rg-fulleralex47-0403 \
+  --server drupalpoc-sql --name AllowAKS \
+  --start-ip-address 20.69.205.212 --end-ip-address 20.69.205.212
+```
+Deleted the crashing pod; replacement pod started successfully.
+
+#### Final State — All 4 Pods Running
+
+```
+NAME                       READY   STATUS    RESTARTS   AGE
+angular-77c66ff75d-m4tv8   1/1     Running   0          5m10s
+api-5986fbfc66-tch7p       1/1     Running   0          43s
+drupal-5d9f5777b7-549gm    2/2     Running   0          5m25s
+gophish-d8dd44dd4-9g2pf    1/1     Running   0          4m59s
+```
+
+#### Ingress & Endpoint Verification
+
+**External IP:** `20.85.112.48` (via `kubectl get svc -n ingress-nginx ingress-nginx-controller`)
+
+| Endpoint | Result |
+| :--- | :--- |
+| `http://20.85.112.48/health` | `{"status":"healthy","service":"drupalpoc-api","timestamp":"..."}` ✅ |
+| `http://20.85.112.48/api/scores` | `[{"id":1,"userId":"jdoe@txstate.edu","campaignId":"camp-001","score":85,...}]` ✅ |
+| `http://20.85.112.48/` | Angular placeholder HTML ✅ |
+| `http://20.85.112.48/jsonapi` | `500` — expected, Drupal needs install against Azure MySQL (Day 4) |
+
+**[LLM_CONTEXT: AKS deployment is COMPLETE. All 4 services are running. The ingress external IP is 20.85.112.48. The .NET API is fully functional (connected to Azure SQL, all endpoints returning data). Drupal returns 500 because it needs a fresh install against Azure MySQL — this is expected and will be addressed when Drupal admin access is configured. Angular is serving the placeholder page. GoPhish is running but accessed via port-forward (not through ingress). The AKS cluster egress IP (20.69.205.212) was added to the Azure SQL firewall. Day 3 is now COMPLETE.]**

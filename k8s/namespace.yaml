@@ -1,0 +1,15 @@
+# =============================================================================
+# Namespace — drupalpoc
+# =============================================================================
+# All platform resources live in this namespace for isolation and easy cleanup.
+#
+# Apply first:
+#   kubectl apply -f k8s/namespace.yaml
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: drupalpoc
+  labels:
+    project: drupalpoc
+    environment: poc

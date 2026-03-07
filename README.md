@@ -4,7 +4,7 @@ A cybersecurity training and phishing simulation platform for the **Texas State 
 
 Modeled after commercial products like **KnowBe4** and **Proofpoint Security Awareness Training**, this platform delivers security awareness courses, simulated phishing campaigns, quizzes, and compliance dashboards — built on open-source tools and deployed to Azure Kubernetes Service (AKS).
 
-> **Status:** Proof-of-concept (POC) — March 2026
+> **Status:** Proof-of-concept (POC) — March 2026 — **Day 3 complete, deployed to AKS**
 
 ---
 
@@ -91,7 +91,7 @@ For the full architecture diagram (Mermaid), service inventory, build-vs-borrow 
 | Component | Technology | Version |
 | :--- | :--- | :--- |
 | Frontend | Angular + Angular Material + Chart.js | 19.x |
-| Business API | .NET 8 Web API (thin stub) | 8.x |
+| Business API | .NET 8 Web API (EF Core 8.0.24, Minimal APIs) | 8.0.418 SDK |
 | CMS | Drupal (headless, JSON:API) | 11.3.3 |
 | Quizzes & Assessments | Drupal Webform (6.3.x-dev) | 6.3.x-dev (only D11-compatible branch) |
 | Phishing Engine | GoPhish | Latest |
@@ -106,7 +106,7 @@ For the full architecture diagram (Mermaid), service inventory, build-vs-borrow 
 | Transactional Database | Azure SQL Server — Basic DTU 5 | `drupalpoc-sql` in centralus |
 | CMS Database | Azure Database for MySQL — Burstable B1ms | `drupalpoc-mysql` in centralus |
 | Container Registry | GitHub Container Registry (GHCR) | `ghcr.io/fullera8/drupalpoc-*` |
-| Container Images | GoPhish, Drupal (PHP 8.4-FPM), Drupal Nginx, .NET API, Angular | 3 of 5 built and pushed to GHCR |
+| Container Images | GoPhish, Drupal (PHP 8.4-FPM), Drupal Nginx, .NET API, Angular | 4 of 5 built and pushed to GHCR (Angular pending Day 4) |
 | CI/CD | GitHub Actions | Build → GHCR → AKS |
 | Local Development | DDEV v1.25.0 (Docker-based) | PHP 8.4, MariaDB 11.8, Drush 13.7.1 |
 | Azure CLI | Containerized DDEV sidecar | `mcr.microsoft.com/azure-cli:latest` + kubectl |
@@ -144,6 +144,23 @@ DrupalPOC/
 │   │   └── settings.php      # Production settings (Azure MySQL via env vars)
 │   └── gophish/
 │       └── Dockerfile        # Thin wrapper on gophish/gophish:latest
+├── k8s/                      # Kubernetes deployment manifests (Day 3)
+│   ├── namespace.yaml        # drupalpoc namespace
+│   ├── secrets.yaml          # Placeholder — real secrets created via kubectl
+│   ├── configmaps.yaml       # Drupal nginx sidecar conf + Angular placeholder HTML
+│   ├── api-deployment.yaml   # .NET API Deployment + ClusterIP Service
+│   ├── drupal-deployment.yaml  # Drupal sidecar (php-fpm + nginx) + Service
+│   ├── angular-deployment.yaml # Angular placeholder + Service
+│   ├── gophish-deployment.yaml # GoPhish + Service
+│   └── ingress.yaml          # Nginx ingress (path-based routing)
+├── src/                      # Application source code
+│   └── DrupalPOC.Api/        # .NET 8 Web API (Day 3)
+│       ├── DrupalPOC.Api.csproj
+│       ├── Program.cs         # Minimal APIs: /health, /api/results, /api/scores
+│       ├── Models/SimulationResult.cs
+│       ├── Data/AppDbContext.cs
+│       ├── appsettings.json
+│       └── appsettings.Development.json  # (.gitignored)
 ├── DrupalPOC.wiki/           # Project wiki (architecture, planning, chat log)
 │   ├── Home.md
 │   ├── Architecture.md       # Full architecture diagram & decisions
@@ -177,7 +194,7 @@ DrupalPOC/
 | **DDEV** | [ddev.readthedocs.io/en/stable/](https://ddev.readthedocs.io/en/stable/) | Local Drupal environment |
 | **Git** | [git-scm.com](https://git-scm.com/) | Version control |
 
-> **Note:** Azure CLI, kubectl, Composer, Drush, PHP, and MariaDB are all provided inside DDEV containers — no local installation required. Node.js and .NET 8 SDK are only needed when working on the Angular and .NET services (Day 2+).
+> **Note:** Azure CLI, kubectl, Composer, Drush, PHP, and MariaDB are all provided inside DDEV containers — no local installation required. .NET 8 SDK (8.0.418) is needed when working on the API service. Node.js is needed for the Angular SPA (Day 4+).
 
 ---
 
@@ -214,7 +231,26 @@ ddev launch
 
 ## Deployment
 
-The POC targets Azure Kubernetes Service (AKS) with the following CI/CD flow:
+The POC is **deployed and running** on Azure Kubernetes Service (AKS) as of Day 3 (Mar 7, 2026).
+
+### Live AKS Deployment
+
+| Resource | Value |
+| :--- | :--- |
+| **Ingress External IP** | `20.85.112.48` |
+| **Namespace** | `drupalpoc` |
+| **Ingress Controller** | nginx ingress controller v1.12.1 |
+| **Pods Running** | 4 (angular, api, drupal [sidecar: 2/2], gophish) |
+
+**Endpoints:**
+| URL | Service |
+| :--- | :--- |
+| `http://20.85.112.48/health` | .NET API health check |
+| `http://20.85.112.48/api/scores` | .NET API scores |
+| `http://20.85.112.48/` | Angular placeholder |
+| `http://20.85.112.48/jsonapi` | Drupal JSON:API (pending Drupal install) |
+
+### CI/CD Pipeline (Target)
 
 1. **Push** code to GitHub (`main` branch)
 2. **GitHub Actions** builds Docker images for each service (Angular, .NET, Drupal, GoPhish)

@@ -123,6 +123,9 @@ Every `[CONCEPTS: ...]` value used across the wiki, organized by domain. **Canon
 - **`GHCR`** — GitHub Container Registry — stores container images at `ghcr.io/fullera8/drupalpoc-*`. _Aliases: `Container_Registry`_
 - **`Nginx`** — Reverse proxy / static file server. Used as Drupal PHP-FPM proxy and Angular SPA server. _Aliases: `nginx`_
 - **`PHP_FPM`** — PHP FastCGI Process Manager. Drupal runtime (PHP 8.4-FPM). Paired with Nginx sidecar. _Aliases: `PHP_8.4`_
+- **`Kubernetes`** — Container orchestration platform. AKS runs K8s v1.33.6. _Aliases: `K8s`, `kubectl`_
+- **`Ingress`** — Nginx ingress controller for path-based routing to AKS services. External IP: `20.85.112.48`. _Aliases: `Ingress_Controller`, `nginx_ingress`_
+- **`EF_Core`** — Entity Framework Core 8.0.24 — ORM for .NET API → Azure SQL. _Aliases: `Entity_Framework`, `Entity_Framework_Core`_
 - **`CI_CD`** — Continuous Integration / Continuous Deployment (GitHub Actions → GHCR → AKS)
 - **`Git`** — Version control. _Aliases: `GitHub` (hosting), `Version_Control`, `Gitignore`_
 - **`Mermaid`** — Diagram-as-code language for architecture diagrams (renders on GitHub)
@@ -156,11 +159,13 @@ Every `[CONCEPTS: ...]` value used across the wiki, organized by domain. **Canon
 - **`[ERROR_PATTERNS: Docker_Connectivity]`** — DDEV cannot communicate with Docker Desktop
 - **`[ERROR_PATTERNS: Composer_Dependencies]`** — Package installation or autoload failures
 - **`[ERROR_PATTERNS: Gitignore_Coverage]`** — Thousands of untracked files staged due to missing exclusions
+- **`[ERROR_PATTERNS: Azure_SQL_Firewall]`** — AKS pods cannot connect to Azure SQL due to missing firewall rule for cluster egress IP
 
 ### Debugging Patterns
 - **`[DEBUGGING_PATTERNS: Docker_Connectivity]`** — DDEV ↔ Docker communication failures (troubleshooting steps in ChatLog)
 - **`[DEBUGGING_PATTERNS: DDEV_Startup]`** — DDEV container startup and communication issues
 - **`[DEBUGGING_PATTERNS: Drupal_Install]`** — Site installation, database, and Drush command issues
+- **`[DEBUGGING_PATTERNS: AKS_Deployment]`** — Pod CrashLoopBackOff, ingress webhook timing, azure-cli sidecar mount paths (ChatLog)
 
 ---
 
@@ -182,6 +187,9 @@ All architecture decisions are tagged with `[ARCHITECTURE_DECISIONS: <name>]`. *
 | `Build_vs_Borrow` | Build custom code vs use existing tools | **80% borrow, 20% build** (8 borrowed, 4 built) | Architecture, ChatLog |
 | `Drupal_Base_Image` | Official `drupal:11` image vs `php:8.4-fpm` + nginx | **php:8.4-fpm + nginx** (production-oriented, microservice pattern) | ChatLog |
 | `GoPhish_Image` | Custom GoPhish build vs upstream image | **Upstream `gophish/gophish:latest`** unmodified | ChatLog |
+| `Drupal_Pod_Architecture` | Separate Deployments vs sidecar pod for PHP-FPM + Nginx | **Sidecar pattern** — shared network + filesystem, co-scaled 1:1 | Architecture, ChatLog |
+| `API_Source_Location` | Where to put .NET source code in the repo | **`src/DrupalPOC.Api/`** — peer to `web/` and future `src/angular/` | ChatLog |
+| `POC_DB_Schema` | Complex normalized schema vs simple POC table | **Single `SimulationResults` table** (Id, UserId, CampaignId, Score, CompletedAt, CreatedAt) | ChatLog |
 
 ---
 
@@ -202,6 +210,9 @@ When a concept has multiple alias forms, use the **canonical form** (first colum
 | `GHCR` | `Container_Registry` | `GHCR` preferred; `Container_Registry` is generic |
 | `Nginx` | `nginx` | Case-insensitive match |
 | `PHP_FPM` | `PHP_8.4` | Use `PHP_FPM` for the runtime process; `PHP_8.4` for version-specific |
+| `Kubernetes` | `K8s`, `kubectl` | Use `Kubernetes` in tags; `kubectl` for the CLI tool specifically |
+| `Ingress` | `Ingress_Controller`, `nginx_ingress` | Use `Ingress` for the K8s resource; qualifier for the controller |
+| `EF_Core` | `Entity_Framework`, `Entity_Framework_Core` | Use `EF_Core` for brevity in tags |
 | `Git` | `GitHub`, `Version_Control`, `Gitignore` | Use specific variant when contextually appropriate |
 | `Sprint_Planning` | `Planning`, `Task_Tracking`, `Timeline` | All acceptable; use what fits |
 | `Wiki` | `Documentation`, `Metadata`, `Tiered_Documentation`, `Tiered_System` | All relate to the documentation system |

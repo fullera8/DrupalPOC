@@ -19,7 +19,7 @@
 | - [x] | Azure Database for MySQL | Burstable B1ms (~$6/mo) | `drupalpoc-mysql` + `drupal` DB in `centralus` |
 | - [x] | Resource Group | Existing | Already provisioned |
 | - [x] | Storage Account | Existing | Already provisioned |
-| - [ ] | GHCR Access from AKS | Image pull secret | So AKS can pull container images from GitHub |
+| - [x] | GHCR Access from AKS | Image pull secret | `ghcr-secret` created in `drupalpoc` namespace |
 
 ---
 
@@ -60,29 +60,30 @@
 - [x] Authenticate to GHCR (GitHub PAT with `write:packages`)
 - [x] Push 3 images to GHCR (`ghcr.io/fullera8/drupalpoc-*`)
 - [x] Verify images accessible via `docker manifest inspect`
-- [ ] Build + push `drupalpoc-api` (blocked on Day 3 .NET scaffold)
+- [x] Build + push `drupalpoc-api` (Day 3 — .NET scaffold complete)
 - [ ] Build + push `drupalpoc-angular` (blocked on Day 4 Angular scaffold)
 
 ### Day 3 — AKS Deployment + .NET Thin API
 
 **AKS Manifests:**
-- [ ] Create Kubernetes namespace (`drupalpoc`)
-- [ ] Create Deployment + Service for Angular SPA
-- [ ] Create Deployment + Service for .NET 8 API
-- [ ] Create Deployment + Service for Drupal 11
-- [ ] Create Deployment + Service for GoPhish
-- [ ] Create Ingress (nginx) for external access
-- [ ] Create GHCR image pull secret in AKS
-- [ ] Create ConfigMaps / Secrets for database connection strings
-- [ ] Verify all pods running (`kubectl get pods -n drupalpoc`)
+- [x] Create Kubernetes namespace (`drupalpoc`)
+- [x] Create Deployment + Service for Angular SPA
+- [x] Create Deployment + Service for .NET 8 API
+- [x] Create Deployment + Service for Drupal 11
+- [x] Create Deployment + Service for GoPhish
+- [x] Create Ingress (nginx) for external access
+- [x] Create GHCR image pull secret in AKS
+- [x] Create ConfigMaps / Secrets for database connection strings
+- [x] Verify all pods running (`kubectl get pods -n drupalpoc`)
 
 **.NET 8 Thin API:**
-- [ ] Scaffold .NET 8 Web API project
-- [ ] Implement `GET /health` endpoint
-- [ ] Implement `POST /api/results` endpoint (save simulation result to Azure SQL)
-- [ ] Implement `GET /api/scores` endpoint (retrieve scores from Azure SQL)
-- [ ] Configure Entity Framework Core with Azure SQL connection string
-- [ ] Test locally, then deploy to AKS
+- [x] Scaffold .NET 8 Web API project
+- [x] Implement `GET /health` endpoint
+- [x] Implement `POST /api/results` endpoint (save simulation result to Azure SQL)
+- [x] Implement `GET /api/scores` endpoint (retrieve scores from Azure SQL)
+- [x] Configure Entity Framework Core with Azure SQL connection string
+- [x] Test locally against Azure SQL (all 3 endpoints verified)
+- [x] Deploy to AKS — all 4 pods running, ingress at `20.85.112.48`
 
 ### Day 4 — Angular Frontend + Integrations
 

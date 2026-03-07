@@ -32,5 +32,9 @@ web/sites/*/settings.ddev.php
 web/sites/*/services.yml
 web/sites/*/files
 
+# .NET build artifacts
+**/bin
+**/obj
+
 # Misc
 powershell.txt

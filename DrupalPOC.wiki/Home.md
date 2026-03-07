@@ -9,6 +9,7 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 ### Architecture & Planning
 - **[🏗️ Architecture](Architecture)** - POC architecture diagram (Mermaid), service inventory, build-vs-borrow strategy
 - **[📋 Planning](Planning)** - Day-by-day task breakdown with checkboxes, Azure provisioning checklist, risk register, post-POC backlog
+- **[💰 Budget](Budget)** - Production capacity estimates, Azure tier recommendations, TCO comparison vs. commercial SaaS
 
 ### Reference
 - **[💬 Chat Log](ChatLog)** - Running conversation log: architecture decisions, setup history, debugging, and design rationale
@@ -32,7 +33,10 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 - **Container Orchestration:** Azure Kubernetes Service `drupalpoc-aks` (eastus2, Free tier, Standard_B2s, K8s v1.33.6)
 - **Container Registry:** GitHub Container Registry (GHCR)
 - **CI/CD:** GitHub Actions → GHCR → AKS
-- **Container Images (Day 2):** `ghcr.io/fullera8/drupalpoc-gophish`, `drupalpoc-drupal` (PHP 8.4-FPM), `drupalpoc-drupal-nginx` — all pushed to GHCR
+- **.NET API (Day 3):** Minimal APIs (​.NET SDK 8.0.418, EF Core 8.0.24) — 3 endpoints: GET /health, POST /api/results, GET /api/scores
+- **K8s Manifests (Day 3):** 8 files in `k8s/` — namespace, secrets, configmaps, 4 deployments + services, ingress
+- **AKS Deployment (Day 3):** All 4 pods running in `drupalpoc` namespace, nginx ingress at `20.85.112.48`
+- **Container Images (Day 2–3):** `ghcr.io/fullera8/drupalpoc-gophish`, `drupalpoc-drupal` (PHP 8.4-FPM), `drupalpoc-drupal-nginx`, `drupalpoc-api` (.NET 8) — 4 of 5 pushed to GHCR (Angular pending Day 4)
 - **Local Development:** DDEV v1.25.0 (PHP 8.4, MariaDB 11.8, Drush 13.7.1)
 - **Azure CLI:** Containerized as DDEV sidecar (`mcr.microsoft.com/azure-cli:latest`) with kubectl — no local Azure CLI install required
 - **Cloud:** Microsoft Azure (Resource Group: `rg-fulleralex47-0403` in eastus2)
@@ -71,7 +75,7 @@ The developer has established enterprise patterns for the following components, 
 | :--- | :--- | :--- |
 | **Day 1** | ✅ Complete | Azure provisioning (AKS, SQL, MySQL) + Drupal content modeling (Training Module type, quiz webform, sample content, JSON:API + CORS) |
 | **Day 2** | ✅ Complete | Dockerfiles for all 4 services + 3 images built & pushed to GHCR (`drupalpoc-gophish`, `drupalpoc-drupal`, `drupalpoc-drupal-nginx`) |
-| **Day 3** | ⬜ Not started | AKS Deployment + .NET Thin API |
+| **Day 3** | ✅ Complete | .NET API scaffolded + tested + pushed to GHCR. K8s manifests created (8 files). Deployed to AKS — all 4 pods running, ingress at `20.85.112.48`. |
 | **Day 4** | ⬜ Not started | Angular Frontend + Integrations |
 | **Day 5** | ⬜ Not started | Dashboard, Demo Data, Polish |
 

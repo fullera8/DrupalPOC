@@ -1,0 +1,77 @@
+# =============================================================================
+# Angular SPA — Deployment + Service (Placeholder)
+# =============================================================================
+# Uses nginx:alpine with a placeholder HTML page (via ConfigMap) until
+# the Angular app is built on Day 4. Once the Angular image is pushed to
+# GHCR, update the image to: ghcr.io/fullera8/drupalpoc-angular:latest
+# and remove the placeholder volume mount.
+#
+# No imagePullSecrets needed — nginx:alpine is a public Docker Hub image.
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: angular
+  namespace: drupalpoc
+  labels:
+    app: angular
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: angular
+  template:
+    metadata:
+      labels:
+        app: angular
+    spec:
+      containers:
+        - name: angular
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: placeholder-page
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: placeholder-page
+          configMap:
+            name: angular-placeholder
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: angular-service
+  namespace: drupalpoc
+  labels:
+    app: angular
+spec:
+  selector:
+    app: angular
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+  type: ClusterIP

@@ -51,3 +51,12 @@
 # Ignore OS generated files
 .DS_Store
 Thumbs.db
+
+# ---------------------
+# .NET Build Artifacts
+# ---------------------
+**/bin/
+**/obj/
+
+# .NET Development Settings (contains credentials)
+**/appsettings.Development.json

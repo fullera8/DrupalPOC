@@ -1,0 +1,109 @@
+# =============================================================================
+# ConfigMaps
+# =============================================================================
+
+---
+# Drupal Nginx Sidecar — overrides fastcgi_pass for K8s pod networking
+#
+# The baked-in nginx.conf uses `fastcgi_pass drupal:9000` (Docker Compose).
+# In a K8s sidecar pod, both containers share the same network namespace,
+# so PHP-FPM is reachable at 127.0.0.1:9000 (localhost).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: drupal-nginx-conf
+  namespace: drupalpoc
+  labels:
+    app: drupal
+data:
+  default.conf: |
+    server {
+        listen 80;
+        server_name _;
+
+        root /var/www/html/web;
+        index index.php;
+
+        # Drupal front-controller pattern
+        location / {
+            try_files $uri /index.php?$query_string;
+        }
+
+        # PHP-FPM handler — sidecar at 127.0.0.1:9000 (shared pod network)
+        location ~ \.php$ {
+            fastcgi_split_path_info ^(.+\.php)(/.+)$;
+            fastcgi_pass 127.0.0.1:9000;
+            fastcgi_index index.php;
+            include fastcgi_params;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            fastcgi_param PATH_INFO $fastcgi_path_info;
+            fastcgi_read_timeout 300;
+            fastcgi_buffers 16 16k;
+            fastcgi_buffer_size 32k;
+        }
+
+        # Security: block hidden files and sensitive paths
+        location ~ /\.ht { deny all; }
+        location ~ /\.git { deny all; }
+        location = /favicon.ico { log_not_found off; access_log off; }
+        location = /robots.txt { allow all; log_not_found off; access_log off; }
+
+        # Serve static files directly (skip PHP-FPM)
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff2?|ttf|eot|mp4|webm)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            log_not_found off;
+        }
+
+        # Health check for Kubernetes probes
+        location /healthz {
+            access_log off;
+            return 200 "ok";
+            add_header Content-Type text/plain;
+        }
+
+        # Block direct access to private files and config
+        location ~ ^/sites/.*/private/ { deny all; }
+        location ~* \.(yml|twig|info)$ { deny all; }
+
+        client_max_body_size 64M;
+    }
+
+---
+# Angular SPA — placeholder page until Day 4 build
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: angular-placeholder
+  namespace: drupalpoc
+  labels:
+    app: angular
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>TSUS Security Awareness Training</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+               display: flex; justify-content: center; align-items: center;
+               min-height: 100vh; margin: 0; background: #f5f5f5; color: #333; }
+        .card { background: white; padding: 3rem; border-radius: 12px;
+                box-shadow: 0 2px 12px rgba(0,0,0,0.1); text-align: center; max-width: 500px; }
+        h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+        .badge { display: inline-block; background: #501214; color: white;
+                 padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.85rem; margin-top: 1rem; }
+        p { color: #666; line-height: 1.6; }
+      </style>
+    </head>
+    <body>
+      <div class="card">
+        <h1>TSUS Security Awareness Training</h1>
+        <p>The Angular SPA will be deployed here on Day 4.<br>
+           Microservice architecture is live on AKS.</p>
+        <span class="badge">POC — March 2026</span>
+      </div>
+    </body>
+    </html>

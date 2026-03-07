@@ -107,8 +107,8 @@ graph TB
 
 | Service | Deployment | Backing Store | POC Scope | Post-POC Expansion |
 | :--- | :--- | :--- | :--- | :--- |
-| **Angular SPA** | AKS (2 replicas) | — | Training module viewer, quiz UI, basic dashboard | Full reporting dashboard, simulation inbox, collaboration |
-| **.NET 8 Web API** | AKS (2 replicas) | Azure SQL Server | Thin stub: health check, save simulation result, get scores (2–3 endpoints) | Full business logic: auth, LTI 1.3, scoring engine, analytics aggregation |
+| **Angular SPA** | AKS (1 replica) | — | Training module viewer, quiz UI, basic dashboard | Full reporting dashboard, simulation inbox, collaboration |
+| **.NET 8 Web API** | AKS (1 replica) | Azure SQL Server | Thin stub: health check, save simulation result, get scores (3 endpoints, EF Core 8.0.24) | Full business logic: auth, LTI 1.3, scoring engine, analytics aggregation |
 | **Drupal 11 Headless** | AKS (1 replica) | Azure MySQL | Training Module content type (6 fields), phishing quiz webform (5 questions), 6 taxonomy categories, JSON:API + CORS configured | Full content modeling, workflow, permissions, tenant-scoped content |
 | **GoPhish** | AKS (1 replica) | SQLite (internal) | Basic phishing campaign with click tracking via REST API | Custom templates, scheduled campaigns, SMTP integration |
 | **Mailhog** | DDEV only (local) | — | Captures GoPhish emails during local dev | Replaced by real SMTP in production |
@@ -116,6 +116,87 @@ graph TB
 | **Azure CLI** | DDEV sidecar | — | Azure provisioning + kubectl from inside Docker (no local install) | Not needed in production |
 
 > **Note:** Webform 6.3.x-dev is the only branch compatible with Drupal 11 (stable releases only support D10). Locked at commit `13ce2a6`.
+
+### Repository Structure
+
+Each microservice has its own source directory and Dockerfile. DDEV is Drupal's local development environment only — .NET and Angular are independent peers with their own build toolchains.
+
+```
+DrupalPOC/
+│
+├── .ddev/                    ← DDEV config (Drupal's local dev environment)
+├── web/                      ← Drupal webroot (Drupal's source code)
+├── composer.json             ← Drupal's PHP dependencies
+├── scripts/                  ← Drupal setup scripts (idempotent)
+│
+├── src/
+│   ├── DrupalPOC.Api/        ← .NET 8 Web API (own project, own Dockerfile)
+│   └── angular/              ← Angular SPA (own project, own Dockerfile)
+│
+├── docker/
+│   ├── api/Dockerfile        ← Multi-stage: .NET 8 SDK → ASP.NET runtime
+│   ├── angular/Dockerfile    ← Multi-stage: Node 22 → Nginx serve
+│   ├── drupal/Dockerfile     ← 3-stage: Composer → PHP 8.4-FPM → Nginx
+│   └── gophish/Dockerfile    ← Thin wrapper on gophish/gophish:latest
+│
+├── k8s/                      ← Kubernetes deployment manifests (8 files)
+│   ├── namespace.yaml        ← drupalpoc namespace
+│   ├── secrets.yaml          ← Placeholder (real secrets via kubectl create)
+│   ├── configmaps.yaml       ← Drupal nginx sidecar conf + Angular placeholder
+│   ├── api-deployment.yaml   ← .NET API Deployment + Service
+│   ├── drupal-deployment.yaml ← Drupal sidecar + Service
+│   ├── angular-deployment.yaml ← Angular placeholder + Service
+│   ├── gophish-deployment.yaml ← GoPhish + Service
+│   └── ingress.yaml          ← Nginx ingress (path-based routing)
+│
+└── DrupalPOC.wiki/           ← Project wiki (architecture, planning, chat log)
+```
+
+| Environment | Drupal | .NET API | Angular |
+| :--- | :--- | :--- | :--- |
+| **Local dev** | `ddev start` → `http://drupalpoc.ddev.site` | `dotnet run` → `http://localhost:5000` | `ng serve` → `http://localhost:4200` |
+| **AKS (production)** | K8s Service → `http://drupal-service:80` | K8s Service → `http://api-service:80` | K8s Service → `http://angular-service:80` |
+
+### Drupal Pod Architecture (PHP-FPM + Nginx Sidecar)
+
+**[ARCHITECTURE_DECISIONS: Drupal_Pod_Architecture]**
+
+Unlike .NET (Kestrel) or Node.js (Express), PHP does not have a built-in HTTP server suitable for production. **PHP-FPM** (FastCGI Process Manager) only speaks the FastCGI protocol on port 9000 — it cannot accept HTTP requests directly from a browser. An **Nginx reverse proxy** is architecturally required to:
+
+1. Accept HTTP requests from clients
+2. Route `.php` requests to PHP-FPM via FastCGI
+3. Serve static assets (CSS, JS, images) directly without involving PHP
+4. Return responses to clients
+
+On AKS, the Drupal pod uses the **sidecar container pattern** — both containers share the same network namespace and filesystem:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Drupal Pod                                              │
+│                                                          │
+│  ┌──────────────────┐    ┌─────────────────────────────┐ │
+│  │  nginx container  │    │  php-fpm container          │ │
+│  │  (port 80)        │───▶│  (port 9000, FastCGI)       │ │
+│  │                   │    │                             │ │
+│  │  Serves static    │    │  Runs Drupal PHP code       │ │
+│  │  files (CSS/JS)   │    │  Returns HTML/JSON to nginx  │ │
+│  │  Routes *.php to  │    │                             │ │
+│  │  PHP-FPM          │    │                             │ │
+│  └──────────────────┘    └─────────────────────────────┘ │
+│           │                        │                     │
+│           └────── shared volume ───┘                     │
+│                  (Drupal webroot via emptyDir)            │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Why sidecar (same pod), not separate Deployments:**
+- **Shared filesystem** — nginx must read Drupal's static files and PHP files directly
+- **Shared network** — nginx forwards to PHP-FPM on `localhost:9000`
+- **Co-scaling** — they always scale 1:1; you never want 3 nginx and 1 PHP-FPM
+
+The Kubernetes Service for Drupal targets **port 80 (nginx)**, not port 9000 (PHP-FPM). External clients never interact with PHP-FPM directly.
+
+> **Why not Apache?** The official `drupal:11` image uses Apache + `mod_php`, where PHP runs inside the Apache process. Every Apache worker loads PHP even when serving static files. Nginx + PHP-FPM is the modern production pattern: lower memory, faster static file serving, independent scaling of the PHP worker pool. This was decided on Day 2.
 
 ### Data Flow
 
@@ -156,6 +237,38 @@ All resources provisioned on **Day 1 (Mar 4, 2026)**. See **[📋 Planning](Plan
 | **Storage Account** | (existing) | eastus2 | — | AKS diagnostics |
 
 > **Region note:** SQL and MySQL are in `centralus` because `eastus2` had capacity constraints for SQL Server provisioning during Day 1. The resource group location (`eastus2`) is a logical designation only — resources can be in any region.
+
+### AKS Deployment Status (Day 3 — Live)
+
+**[SECTION_METADATA: CONCEPTS=AKS,Kubernetes,Ingress,GHCR | DIFFICULTY=Intermediate | TOOLS=kubectl,DDEV,azure-cli_sidecar | RESPONDS_TO: Implementation_How-To]**
+
+Deployed on **Mar 7, 2026** via `ddev exec -s azure-cli kubectl` commands. All manifests in `k8s/`.
+
+| Component | Status |
+| :--- | :--- |
+| **Namespace** | `drupalpoc` created |
+| **Secrets** | `ghcr-secret` (image pull), `api-secrets` (Azure SQL conn string), `drupal-secrets` (Azure MySQL credentials + hash salt) — all created via `kubectl create secret` |
+| **ConfigMaps** | `drupal-nginx-conf` (overrides `fastcgi_pass` to `127.0.0.1:9000` for sidecar), `angular-placeholder` (HTML page) |
+| **Ingress Controller** | nginx ingress controller v1.12.1 — `ingress-nginx` namespace |
+| **Ingress External IP** | `20.85.112.48` |
+
+**Pod Status:**
+| Pod | Ready | Containers |
+| :--- | :--- | :--- |
+| angular | 1/1 | nginx:alpine (placeholder HTML) |
+| api | 1/1 | ghcr.io/fullera8/drupalpoc-api (port 8080) |
+| drupal | 2/2 | php-fpm + nginx sidecar (shared emptyDir volume) |
+| gophish | 1/1 | ghcr.io/fullera8/drupalpoc-gophish (ports 3333, 8080) |
+
+**Ingress Routing (path-based):**
+| Path | Backend Service | Status |
+| :--- | :--- | :--- |
+| `/health` (Exact) | api-service:80 | ✅ Returns `{"status":"healthy"}` |
+| `/api/*` (Prefix) | api-service:80 | ✅ Returns data from Azure SQL |
+| `/jsonapi/*` (Prefix) | drupal-service:80 | ⚠️ 500 — Drupal needs install against Azure MySQL |
+| `/` (Prefix) | angular-service:80 | ✅ Placeholder HTML page |
+
+**Notable fix:** Azure SQL firewall blocked AKS egress IP `20.69.205.212`. Added firewall rule `AllowAKS` via `az sql server firewall-rule create`.
 
 ### POC Build vs. Borrow Strategy
 
@@ -199,8 +312,8 @@ See **[📋 Planning](Planning)** for the full post-POC backlog with checkboxes.
 | :--- | :--- | :--- | :--- |
 | **Day 1** | Azure provisioning (AKS, SQL, MySQL) + Drupal content modeling | Infrastructure + content types | ✅ Complete |
 | **Day 2** | Dockerfiles for all services + GHCR push | 3 container images in GHCR (GoPhish, Drupal FPM, Drupal Nginx) | ✅ Complete |
-| **Day 3** | AKS deployment manifests + .NET thin API | Services running on AKS | ⬜ Not started |
+| **Day 3** | AKS deployment manifests + .NET thin API | 4 pods running on AKS, ingress at `20.85.112.48` | ✅ Complete |
 | **Day 4** | Angular scaffold + connect to Drupal JSON:API + GoPhish | Working frontend | ⬜ Not started |
 | **Day 5** | Dashboard, demo data, polish | Pitch-ready demo | ⬜ Not started |
 
-**[LLM_CONTEXT: This is the POC architecture. Days 1-2 are COMPLETE. Day 1: all Azure resources provisioned and verified, Drupal content model built (Training Module type with 6 fields, phishing quiz webform with 5 questions, 6 taxonomy categories, 3 sample nodes seeded, JSON:API + CORS configured). Day 2: 4 Dockerfiles created under `docker/` (GoPhish, .NET API, Angular, Drupal 3-stage), 3 images built and pushed to GHCR (`drupalpoc-gophish`, `drupalpoc-drupal`, `drupalpoc-drupal-nginx`). The Drupal image uses php:8.4-fpm + nginx (NOT the official drupal:11 image). The .NET and Angular images need their source projects scaffolded on Day 3-4 before building. Webform 6.3.x-dev is the only D11-compatible branch (locked at commit 13ce2a6). Azure CLI runs as a DDEV sidecar container — no local install needed. SQL and MySQL are in centralus due to eastus2 capacity constraints. The .NET API is intentionally thin (2-3 endpoints) to stay within the <1 week timeline. GoPhish is the "wow factor" for the pitch — a real phishing simulation engine. webform_rest module will be needed on Day 4 for quiz API exposure. Post-POC, the .NET API expands to handle auth, LTI, scoring, analytics, and tenant isolation. Do not suggest adding deferred features back into the POC scope. For detailed task tracking, see [Planning](Planning).]**
+**[LLM_CONTEXT: This is the POC architecture. Days 1-3 are COMPLETE. Day 1: all Azure resources provisioned and verified, Drupal content model built (Training Module type with 6 fields, phishing quiz webform with 5 questions, 6 taxonomy categories, 3 sample nodes seeded, JSON:API + CORS configured). Day 2: 4 Dockerfiles created under `docker/` (GoPhish, .NET API, Angular, Drupal 3-stage), 3 images built and pushed to GHCR (`drupalpoc-gophish`, `drupalpoc-drupal`, `drupalpoc-drupal-nginx`). Day 3: .NET 8 API scaffolded at `src/DrupalPOC.Api/` with 3 endpoints (GET /health, POST /api/results, GET /api/scores), EF Core 8.0.24 with Azure SQL, `drupalpoc-api` image built and pushed to GHCR (4 of 5 images now). 8 K8s manifest files created in `k8s/`. All manifests applied to AKS — 4 pods running in `drupalpoc` namespace, nginx ingress controller installed, ingress external IP `20.85.112.48`. Azure SQL firewall rule added for AKS egress IP `20.69.205.212`. The Drupal image uses php:8.4-fpm + nginx (NOT the official drupal:11 image). Only the Angular image remains to be built (Day 4). Webform 6.3.x-dev is the only D11-compatible branch (locked at commit 13ce2a6). Azure CLI runs as a DDEV sidecar container — no local install needed. SQL and MySQL are in centralus due to eastus2 capacity constraints. The .NET API is intentionally thin (3 endpoints) to stay within the <1 week timeline. GoPhish is the "wow factor" for the pitch — a real phishing simulation engine. webform_rest module will be needed on Day 4 for quiz API exposure. Post-POC, the .NET API expands to handle auth, LTI, scoring, analytics, and tenant isolation. Do not suggest adding deferred features back into the POC scope. For detailed task tracking, see [Planning](Planning).]**

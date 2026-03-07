@@ -1,0 +1,81 @@
+# =============================================================================
+# GoPhish — Deployment + Service
+# =============================================================================
+# Phishing simulation engine with REST API + click tracking.
+# Ports: 3333 (admin UI, HTTPS w/ self-signed cert), 8080 (phish listener)
+# Data:  SQLite (internal, ephemeral for POC — lost on pod restart)
+#
+# Access admin UI via port-forward (not exposed through ingress):
+#   kubectl port-forward -n drupalpoc svc/gophish-service 3333:3333
+#   Open: https://localhost:3333
+#   Default creds: admin / <printed in pod logs on first start>
+#   Check logs: kubectl logs -n drupalpoc deployment/gophish
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gophish
+  namespace: drupalpoc
+  labels:
+    app: gophish
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gophish
+  template:
+    metadata:
+      labels:
+        app: gophish
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: gophish
+          image: ghcr.io/fullera8/drupalpoc-gophish:latest
+          ports:
+            - containerPort: 3333
+              name: admin
+            - containerPort: 8080
+              name: phish
+          # GoPhish admin uses HTTPS with self-signed cert — use TCP probe
+          livenessProbe:
+            tcpSocket:
+              port: 3333
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 3333
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gophish-service
+  namespace: drupalpoc
+  labels:
+    app: gophish
+spec:
+  selector:
+    app: gophish
+  ports:
+    - name: admin
+      port: 3333
+      targetPort: 3333
+      protocol: TCP
+    - name: phish
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP

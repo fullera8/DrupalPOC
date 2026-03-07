@@ -1,0 +1,79 @@
+# =============================================================================
+# Ingress — Path-Based Routing (Nginx Ingress Controller)
+# =============================================================================
+# Routes external traffic to internal ClusterIP services by URL path.
+#
+# Routing:
+#   /api/*     → api-service      (.NET 8 Web API — /api/results, /api/scores)
+#   /health    → api-service      (.NET 8 health check)
+#   /jsonapi/* → drupal-service   (Drupal JSON:API — /jsonapi/node/training_module)
+#   /*         → angular-service  (Angular SPA — default/catch-all)
+#
+# Admin-only services (not exposed through ingress):
+#   Drupal admin:  kubectl port-forward -n drupalpoc svc/drupal-service 8080:80
+#                  Open: http://localhost:8080/user/login
+#   GoPhish admin: kubectl port-forward -n drupalpoc svc/gophish-service 3333:3333
+#                  Open: https://localhost:3333
+#
+# Prerequisites:
+#   Install the nginx ingress controller on AKS:
+#
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.1/deploy/static/provider/cloud/deploy.yaml
+#
+#   Wait for the external IP:
+#   kubectl get svc -n ingress-nginx ingress-nginx-controller --watch
+#
+#   Once assigned, all services are accessible at: http://<EXTERNAL_IP>/
+# =============================================================================
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: drupalpoc-ingress
+  namespace: drupalpoc
+  labels:
+    project: drupalpoc
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "64m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          # .NET 8 Web API — business logic endpoints
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 80
+
+          # .NET 8 health check (exact match)
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: api-service
+                port:
+                  number: 80
+
+          # Drupal JSON:API — headless content delivery
+          - path: /jsonapi
+            pathType: Prefix
+            backend:
+              service:
+                name: drupal-service
+                port:
+                  number: 80
+
+          # Angular SPA — default catch-all (must be last)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: angular-service
+                port:
+                  number: 80
