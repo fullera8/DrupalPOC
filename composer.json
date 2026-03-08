@@ -21,6 +21,7 @@
         "drupal/core-recipe-unpack": "^11.3",
         "drupal/core-recommended": "^11.3",
         "drupal/webform": "6.3.x-dev",
+        "drupal/webform_rest": "^4.2",
         "drush/drush": "^13.7"
     },
     "conflict": {

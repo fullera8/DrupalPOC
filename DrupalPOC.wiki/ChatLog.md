@@ -1395,3 +1395,617 @@ gophish-d8dd44dd4-9g2pf    1/1     Running   0          4m59s
 | `http://20.85.112.48/jsonapi` | `500` — expected, Drupal needs install against Azure MySQL (Day 4) |
 
 **[LLM_CONTEXT: AKS deployment is COMPLETE. All 4 services are running. The ingress external IP is 20.85.112.48. The .NET API is fully functional (connected to Azure SQL, all endpoints returning data). Drupal returns 500 because it needs a fresh install against Azure MySQL — this is expected and will be addressed when Drupal admin access is configured. Angular is serving the placeholder page. GoPhish is running but accessed via port-forward (not through ingress). The AKS cluster egress IP (20.69.205.212) was added to the Azure SQL firewall. Day 3 is now COMPLETE.]**
+
+---
+
+## Day 4 — Angular Frontend + Integrations (Mar 7, 2026)
+**[SECTION_METADATA: CONCEPTS=Angular,DotNet8,Drupal,GoPhish,Docker,AKS,Webform | DIFFICULTY=Intermediate-Advanced | TOOLS=Angular_CLI,kubectl,ddev,Docker | RESPONDS_TO: Implementation_How-To, Architectural_Decision]**
+
+### Day 4 Planning Discussion
+
+**Angular Version Update:** Angular 21.x (latest stable, active status) selected over previously noted 19.x. Compatible with Node ^20.19.0 || ^22.12.0 || ^24.0.0, TypeScript >=5.9.0 <6.0.0, RxJS ^6.5.3 || ^7.4.0. Existing Dockerfile uses `node:22-alpine` — compatible. Will scaffold with `@angular/cli@21.0.0`.
+
+**Drupal AKS MySQL — Prioritized First:** The Drupal pod on AKS returns 500 at `/jsonapi` because `site:install` has not been run against Azure MySQL. Decision: run `drush site:install` inside the Drupal pod on AKS, then re-run the 4 setup scripts (`create_training_module_type.php`, `create_quiz_webform.php`, `seed_training_content.php`, `configure_cors.php`). Local DDEV development is allowed for speed, but AKS Drupal must be operational before marking Drupal integration complete.
+
+**GoPhish Campaign — Real Data Only:** A minimal real GoPhish campaign will be seeded via the GoPhish REST API. No mocking unless expressly permitted or for debugging purposes only.
+
+**Webform REST Investigation:** The existing `drupal/webform` 6.3.x-dev package is installed. The team will first test whether Webform exposes quiz structure natively via JSON:API before adding the `webform_rest` module. If JSON:API cannot serve webform elements, `webform_rest` will be added via Composer.
+
+**Agreed Day 4 Execution Order:**
+1. Drupal AKS MySQL `site:install` + setup scripts → verify `/jsonapi/node/training_module` returns data
+2. Angular 21 scaffold (Angular Material, Chart.js, routing, environment config, proxy)
+3. Webform API investigation (JSON:API vs. `webform_rest`)
+4. Drupal JSON:API integration — training module list + detail pages
+5. .NET API integration — scores/results pages
+6. GoPhish campaign seeding + Angular integration
+7. Dashboard shell (Chart.js)
+8. Docker build + GHCR push + AKS deploy
+
+**[LLM_CONTEXT: Day 4 is in progress. Angular version is 21.x (NOT 19.x). The developer requires pair-programming discipline — every change must be discussed and approved before execution. No mocking of data — all integrations use real services. The Drupal AKS install is the critical first step.]**
+
+### Phase 1: Drupal AKS MySQL site:install (Mar 7, 2026)
+**[DIFFICULTY: Intermediate] [CONCEPTS: Drupal, Drush, AKS, Azure_MySQL, Kubernetes, Exec_Chain]**
+
+#### Problem: Drupal Pod Returns 500 on `/jsonapi`
+
+The Drupal pod on AKS (`drupal-5d9f5777b7-549gm`, 2/2 containers: `drupal` + `nginx`) was running but not functional. The `/jsonapi` endpoint returned HTTP 500 because `drush site:install` had never been run against Azure MySQL — only the local DDEV MariaDB had a Drupal install.
+
+#### Obstacle 1: MySQL Firewall Blocking AKS Egress
+
+**Symptom:** `drush site:install` hung with no output, then `Connection timed out` in Drupal pod logs.
+
+**Root Cause:** Azure MySQL firewall had rules for the developer's local IP (`38.27.127.48`) but not the AKS cluster's egress IP (`20.69.205.212`).
+
+**Fix:**
+```powershell
+ddev exec -s azure-cli az mysql flexible-server firewall-rule create \
+  --resource-group rg-fulleralex47-0403 --name drupalpoc-mysql \
+  --rule-name AllowAKS --start-ip-address 20.69.205.212 --end-ip-address 20.69.205.212
+```
+
+**Three IPs in Play (Clarification):**
+
+| IP Address | What It Is | Used For |
+| :--- | :--- | :--- |
+| `38.27.127.48` | Developer's local public IP | Azure SQL/MySQL `AllowLocalDev` firewall rules |
+| `20.69.205.212` | AKS cluster egress (outbound) IP | Azure SQL/MySQL `AllowAKS` firewall rules |
+| `20.85.112.48` | AKS ingress (inbound) external IP | Browser access to services (`http://20.85.112.48/...`) |
+
+#### Obstacle 2: Azure MySQL SSL Enforcement (`require_secure_transport=ON`)
+
+**Symptom:** After fixing the firewall, `site:install` failed with SSL-related connection errors. Azure MySQL enforces `require_secure_transport=ON` by default.
+
+**Options Considered:**
+- **Option A:** Enable SSL in `settings.php` (uncomment PDO SSL lines), rebuild Drupal image, push to GHCR, redeploy to AKS
+- **Option B:** Temporarily disable `require_secure_transport` on Azure MySQL, fix properly later
+
+**Decision:** Option B — disable SSL enforcement now, rebuild with SSL at end of day if time permits.
+
+```powershell
+ddev exec -s azure-cli az mysql flexible-server parameter set \
+  --resource-group rg-fulleralex47-0403 --server-name drupalpoc-mysql \
+  --name require_secure_transport --value OFF
+```
+
+Result: `currentValue: OFF`, `isDynamicConfig: True` — immediate effect, no server restart needed.
+
+**[DEFERRED: Re-enable `require_secure_transport=ON` + uncomment SSL lines in `docker/drupal/settings.php` + rebuild Drupal image during Phase 8 (Docker build & AKS deploy).]**
+
+#### Obstacle 3: Exec Chain Output Swallowing / SIGINT
+
+**Symptom:** Commands run via `ddev exec -s azure-cli kubectl exec -n drupalpoc <pod> -c drupal -- vendor/bin/drush ...` would hang, produce no visible output, or get interrupted with exit code 130 (SIGINT). The triple-nested exec chain (PowerShell → DDEV → kubectl → container) swallowed stdout and was unreliable for long-running commands.
+
+**Workaround:** Base64-encode shell scripts in PowerShell (using single-quoted here-strings `@'...'@` to prevent `$?` interpolation), decode inside the pod, write to `/tmp/install.sh`, and run via `nohup` in the background. Poll `/tmp/install.log` for results.
+
+```powershell
+# PowerShell: encode script
+$script = @'
+#!/bin/sh
+cd /var/www/html
+vendor/bin/drush site:install standard --site-name='TSUS Security Training' --account-name=admin --account-pass=<PASSWORD> --yes >> /tmp/install.log 2>&1
+echo "EXIT_CODE=$?" >> /tmp/install.log
+'@
+$b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($script))
+
+# Deploy to pod, run in background
+ddev exec -s azure-cli kubectl exec -n drupalpoc <pod> -c drupal -- \
+  sh -c 'echo <base64> | base64 -d > /tmp/install.sh && chmod +x /tmp/install.sh && rm -f /tmp/install.log && nohup /tmp/install.sh &'
+
+# Poll log
+ddev exec -s azure-cli kubectl exec -n drupalpoc <pod> -c drupal -- cat /tmp/install.log
+```
+
+**[LLM_CONTEXT: The base64-encode-then-nohup pattern is the proven way to run long Drush commands inside the Drupal pod on AKS via the triple-nested exec chain. Direct `kubectl exec -- drush` commands are unreliable for operations that take >30s due to SIGINT and output swallowing. Always poll a log file for results.]**
+
+#### Obstacle 4: Partial Install State
+
+**Symptom:** After one `site:install` attempt was interrupted by SIGINT, retrying produced: _"To start over, you must empty your existing database and copy default.settings.php over settings.php."_
+
+**Root Cause:** The interrupted install had created `config` and `key_value` tables in Azure MySQL. `drush sql:drop --yes` didn't fully clear them (or re-created them via Drupal bootstrap during the drop operation).
+
+**Fix:** Manually dropped residual tables, then reran install:
+```
+drush sql:drop --yes              # Dropped most tables
+drush sql:query "DROP TABLE config, key_value"   # Cleaned remaining 2
+drush sql:query "SHOW TABLES"     # Verified: empty
+```
+
+Then ran the base64-encoded install script via nohup. The install completed successfully on the clean database.
+
+#### site:install Success
+
+Install log output:
+```
+[notice] Starting Drupal installation. This takes a while.
+[notice] Performed install task: install_select_language
+[notice] Performed install task: install_select_profile
+[notice] Performed install task: install_load_profile
+[notice] Performed install task: install_verify_requirements
+[notice] Performed install task: install_verify_database_ready
+[notice] Performed install task: install_base_system
+[notice] Performed install task: install_bootstrap_full
+[notice] Performed install task: install_profile_modules
+[notice] Performed install task: install_profile_themes
+[notice] Performed install task: install_install_profile
+[notice] Performed install task: install_configure_form
+[notice] Performed install task: install_finished
+[success] Installation complete. (Admin)
+EXIT_CODE=0
+```
+
+**Verification:**
+
+| Check | Command | Result |
+| :--- | :--- | :--- |
+| Bootstrap | `drush status --fields=bootstrap` | `Drupal bootstrap: Successful` |
+| Database | `drush sql:query "SHOW TABLES"` | 55 tables created |
+| Admin user | `drush sql:query "SELECT uid, name, status FROM users_field_data WHERE uid=1"` | `1  admin  1` (active) |
+| Site name | `drush config:get system.site name` | `'TSUS Security Training'` |
+
+#### Module Enablement
+
+```powershell
+ddev exec -s azure-cli kubectl exec -n drupalpoc drupal-5d9f5777b7-549gm -c drupal -- \
+  vendor/bin/drush en jsonapi serialization webform -y
+```
+
+Result:
+```
+[success] Module jsonapi has been installed. (Configure)
+[success] Module serialization has been installed.
+[success] Module webform has been installed. (Permissions - Configure)
+```
+
+#### Setup Scripts Execution
+
+All 4 scripts ran via a combined background shell script (same base64-encode + nohup pattern):
+
+| Script | Output | Exit Code |
+| :--- | :--- | :--- |
+| `create_training_module_type.php` | Content type + 5 fields + taxonomy vocab (6 terms) | `0` |
+| `create_quiz_webform.php` | Phishing quiz (5 questions, answer key: Q1=c, Q2=c, Q3=b, Q4=b, Q5=b) | `0` |
+| `seed_training_content.php` | 3 training modules (nid 1, 2, 3) | `0` |
+| `configure_cors.php` | CORS enabled (wildcard origins, POC only) | `0` |
+
+#### JSON:API Verification via AKS Ingress
+
+**Endpoint:** `http://20.85.112.48/jsonapi/node/training_module`
+
+**Result:** JSON:API returns all 3 training modules with full data:
+
+| nid | Title | Difficulty | Duration | Category |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | Recognizing Phishing Emails | beginner | 5 min | Phishing Awareness |
+| 2 | Social Engineering: Manipulation Tactics | intermediate | 8 min | Social Engineering |
+| 3 | Password Best Practices & MFA | beginner | 6 min | Password Hygiene |
+
+All attributes populated: `title`, `field_description`, `field_difficulty`, `field_duration`, `field_video_url`, `field_category` (relationship).
+
+#### Phase 1 Summary
+
+| Step | Status |
+| :--- | :--- |
+| Azure MySQL firewall rule for AKS egress | ✅ `AllowAKS` (20.69.205.212) |
+| Disable `require_secure_transport` (temporary) | ✅ `OFF` (dynamic, immediate) |
+| `drush site:install standard` | ✅ `EXIT_CODE=0` |
+| Enable jsonapi + serialization + webform modules | ✅ All 3 installed |
+| `create_training_module_type.php` | ✅ Content type + fields + taxonomy |
+| `create_quiz_webform.php` | ✅ 5-question phishing quiz |
+| `seed_training_content.php` | ✅ 3 training modules |
+| `configure_cors.php` | ✅ CORS configured |
+| JSON:API endpoint verification | ✅ 3 modules returned via `http://20.85.112.48/jsonapi/node/training_module` |
+
+**Drupal on AKS is fully operational.** The `/jsonapi` endpoint that was returning 500 now returns training module data. Phase 1 is complete.
+
+**[LLM_CONTEXT: Drupal on AKS is fully installed and operational as of Day 4. The admin password is stored securely (not in the ChatLog). Azure MySQL `require_secure_transport` is OFF (temporary — re-enable during Phase 8). The base64-encode + nohup pattern is the proven method for running long Drush commands in the AKS pod. All 4 setup scripts are idempotent and have been run successfully against Azure MySQL. JSON:API is confirmed working at the AKS ingress IP. Phase 1 is COMPLETE — proceed to Phase 2 (Angular 21 scaffold).]**
+
+### Phase 2: Angular 21 Scaffold (Mar 7, 2026)
+**[DIFFICULTY: Intermediate] [CONCEPTS: Angular, Docker, Node, Angular_Material, Chart_JS]**
+
+#### Containerized Angular Development — No Local Node/npm
+
+**Architectural Decision:** Angular CLI, npm, and all Node.js tooling run exclusively inside `node:22-alpine` Docker containers via volume mounts — **not** installed on the host machine. This enforces the project's Day 1 principle: _"All services run from container images. No local installations beyond Docker Desktop, DDEV, and core SDKs."_
+
+**Why containerize the Angular toolchain:**
+- Zero local Node/npm/Angular CLI required — only Docker
+- Consistent Node version (`node:22-alpine`) across dev and production
+- Clone-and-go for new developers
+- Bypasses the Windows PowerShell `Restricted` execution policy that blocks `npm.ps1`/`npx.ps1`/`ng.ps1` wrappers
+
+**Known Tradeoff (Post-POC):** The `docker run --rm -v` approach writes `node_modules/` to the host volume. Post-POC improvement: use a named Docker volume or dev container so `node_modules` never lands on the host filesystem. Documented in Planning.md Post-POC Backlog.
+
+#### Three Docker Commands for Angular Development
+
+| Activity | Command | When |
+| :--- | :--- | :--- |
+| **Scaffold** | `docker run --rm -v "${PWD}/src/angular:/app" -w /app node:22-alpine sh -c "npx @angular/cli@21 new ..."` | Once |
+| **Dev serve** | `docker run --rm --name angular-dev -v "${PWD}/src/angular:/app" -w /app -p 4200:4200 node:22-alpine sh -c "npx ng serve --host 0.0.0.0 --poll 2000"` | During dev |
+| **Prod build** | Handled by existing `docker/angular/Dockerfile` (multi-stage: Node 22 build → Nginx serve) | Per deploy |
+
+#### Scaffold Execution
+
+**Command:**
+```powershell
+docker run --rm -v "${PWD}/src/angular:/app" -w /app node:22-alpine `
+  sh -c "npx @angular/cli@21 new drupalpoc-angular --directory . --style=scss --routing --ssr=false --skip-git --skip-tests"
+```
+
+**Flags:**
+- `--directory .` — scaffold directly into `src/angular/` (not a subdirectory)
+- `--style=scss` — Angular Material works best with SCSS
+- `--routing` — routes for dashboard, modules, quiz, results
+- `--ssr=false` — SPA served by nginx, no server-side rendering
+- `--skip-git` — parent repo already has git
+- `--skip-tests` — POC velocity
+- Project name `drupalpoc-angular` — matches Dockerfile's `COPY --from=build /app/dist/drupalpoc-angular/browser/`
+
+**Result:** Angular CLI 21.2.1 scaffolded successfully. 22 files created.
+
+#### Package Installation
+
+```powershell
+docker run --rm -v "${PWD}/src/angular:/app" -w /app node:22-alpine `
+  sh -c "npm install @angular/material @angular/cdk @angular/animations chart.js --save"
+```
+
+| Package | Version | Purpose |
+| :--- | :--- | :--- |
+| `@angular/material` | ^21.2.1 | UI component library |
+| `@angular/cdk` | ^21.2.1 | Material dependency (Component Dev Kit) |
+| `@angular/animations` | ^21.2.0 | Required by `provideAnimationsAsync()` |
+| `chart.js` | ^4.5.1 | Dashboard charts (Day 5) |
+
+**Note:** `@angular/animations` was not included in the default scaffold. The production build failed with `Could not resolve "@angular/animations/browser"` until it was installed separately.
+
+#### App Configuration
+
+**`app.config.ts`** — Added `provideHttpClient()` (for API calls) and `provideAnimationsAsync()` (for Material animations).
+
+**`styles.scss`** — Added Material theme import (`@use '@angular/material' as mat`) and global body styles (Roboto font, zero margin, full height).
+
+**`index.html`** — Updated title to "TSUS Security Training". Added Google Fonts CDN links for Roboto and Material Icons.
+
+**`angular.json`** — Added `fileReplacements` in the production configuration to swap `environment.ts` → `environment.prod.ts` at build time.
+
+#### Environment Configs
+
+| File | `drupalBaseUrl` | `apiBaseUrl` | `gophishBaseUrl` |
+| :--- | :--- | :--- | :--- |
+| `environment.ts` (dev) | `http://localhost:8080` | `http://localhost:5000` | `http://localhost:3333` |
+| `environment.prod.ts` | `/drupal` | `/api` | `/gophish` |
+
+Production URLs use relative paths — the AKS nginx ingress handles path-based routing to each service.
+
+#### App Shell (Angular Material)
+
+Replaced the 325-line Angular placeholder HTML with a Material toolbar + sidenav layout:
+- **Toolbar:** "TSUS Security Training" with hamburger menu toggle
+- **Sidenav:** 4 navigation links with Material Icons — Dashboard, Training Modules, Quiz, Simulation Results
+- **Content area:** `<router-outlet />` for routed components
+
+#### Route Structure
+
+| Path | Component | Purpose |
+| :--- | :--- | :--- |
+| `/` | Redirect → `/dashboard` | Default route |
+| `/dashboard` | `DashboardComponent` | Compliance dashboard (Charts — Day 5) |
+| `/modules` | `ModulesComponent` | Training module list (Drupal JSON:API — Phase 4) |
+| `/quiz` | `QuizComponent` | Phishing quiz (Webform — Phase 3-4) |
+| `/results` | `ResultsComponent` | Simulation results (GoPhish — Phase 6) |
+
+All 4 page components are stubs with placeholder text. They will be fleshed out during Phases 4-7.
+
+#### Dockerfile Alignment Fix
+
+Updated [docker/angular/Dockerfile](docker/angular/Dockerfile) comment: `Angular 19` → `Angular 21` (line 33). The `COPY --from=build /app/dist/drupalpoc-angular/browser/` path was already correct and matches the Angular 21 output structure.
+
+#### Production Build Verification
+
+```powershell
+docker run --rm -v "${PWD}/src/angular:/app" -w /app node:22-alpine `
+  sh -c "npx ng build --configuration=production"
+```
+
+**Result:** `Application bundle generation complete. [15.432 seconds]`
+
+| Chunk | Size (raw) | Size (transfer) |
+| :--- | :--- | :--- |
+| `main-JZDY5IBF.js` | 230.65 kB | 50.47 kB |
+| `chunk-27ZACLTW.js` | 142.81 kB | 42.74 kB |
+| `styles-E5R2EAIZ.css` | 82 bytes | 82 bytes |
+| **Initial total** | **373.54 kB** | **93.30 kB** |
+
+Output at `dist/drupalpoc-angular/browser/` — matches Dockerfile `COPY` path.
+
+#### Dev Server Verification
+
+```powershell
+docker run --rm --name angular-dev -v "${PWD}/src/angular:/app" -w /app `
+  -p 4200:4200 node:22-alpine sh -c "npx ng serve --host 0.0.0.0 --poll 2000"
+```
+
+Dev server compiled successfully: `Application bundle generation complete. [4.612 seconds]`. Accessible at `http://localhost:4200/`. Developer visually confirmed the Material toolbar + sidenav app shell renders correctly.
+
+#### Phase 2 Summary
+
+| Step | Status |
+| :--- | :--- |
+| Angular 21 scaffold via Docker | ✅ 22 files, project name `drupalpoc-angular` |
+| Install Angular Material + CDK + Animations + Chart.js | ✅ 419 packages, 0 vulnerabilities |
+| Material app shell (toolbar + sidenav + 4 routes) | ✅ Visually confirmed at `http://localhost:4200/` |
+| Environment configs (dev + prod) | ✅ Created |
+| Production build | ✅ 373.54 kB initial, output at `dist/drupalpoc-angular/browser/` |
+| Dockerfile alignment | ✅ Comment updated, `COPY` path matches |
+
+**Phase 2 is complete.** Angular 21 is scaffolded, building, and serving via containerized Node.js. Ready for Phase 3 (Webform API investigation).
+
+**[LLM_CONTEXT: Angular 21 scaffold is complete. All Angular CLI/npm/Node operations run inside `node:22-alpine` Docker containers — nothing installed on the host. The project is at `src/angular/`, builds to `dist/drupalpoc-angular/browser/`, and the existing Dockerfile at `docker/angular/Dockerfile` is aligned. Four stub page components exist (dashboard, modules, quiz, results) with routes wired up. `provideHttpClient()` is configured in `app.config.ts` — ready for API integration. Environment configs point to localhost (dev) and relative paths (prod/AKS). Phase 2 is COMPLETE — proceed to Phase 3 (Webform API investigation).]**
+
+---
+
+### Phase 3: Webform REST API (Mar 7, 2026)
+**[DIFFICULTY: Intermediate] [CONCEPTS: Drupal, Webform, REST_API, JSON_API, webform_rest, Angular_Integration]**
+
+#### Investigation: Can JSON:API Serve Webform Quiz Structure?
+
+**Question:** Does Drupal's built-in JSON:API expose webform element structure (questions, options, types) for Angular to render a quiz dynamically?
+
+**Probes performed against AKS Drupal (`http://20.85.112.48`):**
+
+| Endpoint | Result | Conclusion |
+| :--- | :--- | :--- |
+| `GET /jsonapi/webform/webform` | HTTP 200, `"data": []`, two webforms omitted ("Access to webform configuration is required") | JSON:API sees webforms as config entities but access-denied even for structure |
+| `GET /jsonapi/webform_submission/webform_submission` | HTTP 404 (returned HTML page) | Webform submissions are NOT exposed via JSON:API at all |
+
+**Conclusion:** JSON:API **cannot** serve webform quiz element structure. It treats webforms as config entities with restrictive access, and webform submissions are not JSON:API resources. A dedicated module is required.
+
+#### Decision: Install `webform_rest` Module
+
+**`drupal/webform_rest` 4.2.0** — provides REST resource plugins that expose webform elements, fields, and submission endpoints as proper Drupal REST resources.
+
+**Why this module is required:**
+- JSON:API returns empty `data: []` for webforms (access-denied for anonymous)
+- JSON:API does not expose `webform_submission` as a resource at all
+- `webform_rest` provides dedicated REST endpoints specifically designed for decoupled/headless quiz rendering
+- It enables the core pitch: "Admins author quizzes in Drupal, trainees take them in Angular"
+
+#### Local Validation First (DDEV)
+
+Before touching AKS, the module was validated end-to-end on the local DDEV environment to isolate module/config issues from infrastructure issues.
+
+**Installation:**
+```powershell
+ddev composer require drupal/webform_rest --no-interaction   # 4.2.0 installed
+ddev drush en webform_rest -y                                # Enabled webform_rest + rest
+```
+
+**Key Discovery — REST Resources Must Be Explicitly Enabled:**
+
+Installing and enabling `webform_rest` is NOT enough. The module provides REST resource *plugins*, but Drupal's REST framework requires explicit `RestResourceConfig` entities to register routes. Without this step, the endpoints return **404 "No route found"**.
+
+Created `scripts/enable_webform_rest.php` to configure this programmatically:
+
+```php
+use Drupal\rest\Entity\RestResourceConfig;
+
+$resources = [
+  'webform_rest_elements' => ['GET' => ['supported_formats' => ['json'], 'supported_auth' => ['cookie']]],
+  'webform_rest_fields'   => ['GET' => ['supported_formats' => ['json'], 'supported_auth' => ['cookie']]],
+  'webform_rest_submit'   => ['POST' => ['supported_formats' => ['json'], 'supported_auth' => ['cookie']]],
+];
+
+// Create RestResourceConfig entities with method granularity
+// Grant anonymous GET permissions for elements + fields
+```
+
+**Critical configuration details:**
+- `granularity` must be `'method'` (not `'resource'`) — Drupal 11 throws `InvalidArgumentException: Invalid granularity specified` with `'resource'` granularity
+- Anonymous role needs explicit `restful get webform_rest_elements` and `restful get webform_rest_fields` permissions
+- The `?_format=json` query parameter is **required** on all requests — without it, Drupal doesn't know to return JSON
+
+**Local test results:**
+
+| Endpoint | HTTP | Result |
+| :--- | :--- | :--- |
+| `GET /webform_rest/phishing_awareness_quiz/elements?_format=json` | 200 | 37KB — full quiz render array (all elements, options, render metadata) |
+| `GET /webform_rest/phishing_awareness_quiz/fields?_format=json` | 200 | Cleaner output — just element metadata (type, title, options, webform keys) |
+
+The `fields` endpoint is preferred for Angular — it returns only the essential form element metadata without the full Drupal render array.
+
+#### AKS Replication
+
+With the module validated locally, the same steps were applied to AKS:
+
+1. **`webform_rest` already installed** — `composer require drupal/webform_rest` and `drush en webform_rest -y` had been run on the AKS pod earlier (Composer 2.9.5 installed at runtime, module 4.2.0 downloaded)
+2. **REST resource configs already created** — the `RestResourceConfig` entities were created via `drush php:eval` with method granularity
+3. **Permissions were missing** — the `enable_webform_rest.php` script was pushed to the pod via base64 and executed via `drush scr`. This granted anonymous GET permissions.
+4. **Ingress updated** — added `/webform_rest` → `drupal-service` path to `k8s/ingress.yaml` and applied via `kubectl apply`
+
+**AKS test results:**
+
+| Endpoint | HTTP | Result |
+| :--- | :--- | :--- |
+| `http://20.85.112.48/webform_rest/phishing_awareness_quiz/elements?_format=json` | 200 | Full quiz JSON — 5 questions with options ✅ |
+| `http://20.85.112.48/webform_rest/phishing_awareness_quiz/fields?_format=json` | 200 | Clean element metadata ✅ |
+
+#### Updated Ingress Routing
+
+| Path | Service | Notes |
+| :--- | :--- | :--- |
+| `/api/*` | `api-service:80` | .NET API |
+| `/health` | `api-service:80` | .NET health check |
+| `/jsonapi/*` | `drupal-service:80` | Drupal JSON:API — training modules |
+| `/webform_rest/*` | `drupal-service:80` | **NEW** — Webform REST — quiz elements + submissions |
+| `/` (default) | `angular-service:80` | Angular SPA catch-all |
+
+#### Files Created/Modified
+
+| File | Change |
+| :--- | :--- |
+| `scripts/enable_webform_rest.php` | **NEW** — Enables REST resource configs + grants anonymous permissions |
+| `k8s/ingress.yaml` | Added `/webform_rest` → `drupal-service` route |
+| `composer.json` / `composer.lock` | Added `drupal/webform_rest: ^4.2` dependency |
+
+#### Angular Integration Endpoints (For Phase 4)
+
+| Purpose | Method | URL | Notes |
+| :--- | :--- | :--- | :--- |
+| Get quiz structure | GET | `/webform_rest/{webform_id}/fields?_format=json` | Returns question types, titles, options |
+| Get quiz elements (full) | GET | `/webform_rest/{webform_id}/elements?_format=json` | Full render array — use `fields` instead |
+| Submit quiz answers | POST | `/webform_rest/{webform_id}/submission?_format=json` | Requires auth (cookie) |
+
+**Phase 3 is complete.** Webform REST endpoints are operational on both local DDEV and AKS. Angular can now fetch quiz structure from Drupal and render it dynamically.
+
+**[LLM_CONTEXT: `webform_rest` 4.2.0 is installed and configured on both DDEV and AKS. JSON:API CANNOT serve webform quiz structure — `webform_rest` is required. The module needs 3 things beyond `drush en`: (1) RestResourceConfig entities with `granularity => 'method'`, (2) anonymous permissions for GET endpoints, (3) `?_format=json` query parameter on all requests. The `fields` endpoint (`/webform_rest/{id}/fields?_format=json`) is the preferred endpoint for Angular — cleaner output than `elements`. The ingress now routes `/webform_rest/*` to Drupal alongside `/jsonapi/*`. A reusable script at `scripts/enable_webform_rest.php` handles the REST resource configuration. Phase 3 is COMPLETE — proceed to Phase 4 (Drupal JSON:API integration in Angular).]**
+
+---
+
+### Phase 4: Drupal JSON:API Integration in Angular (Mar 8, 2026)
+**[DIFFICULTY: Intermediate-Advanced] [CONCEPTS: Angular, JSON_API, webform_rest, Decoupled_Drupal, Angular_Material]**
+
+#### Phase 4 Design Decisions
+
+**Decision 1 — Single DrupalService (POC):**
+One injectable `DrupalService` handles all Drupal API calls (JSON:API for training modules + webform_rest for quiz data). Post-POC: split into separate services (`TrainingModuleService`, `QuizService`, etc.) based on client-specific requirements. Added to Planning.md Post-POC Backlog.
+
+**Decision 2 — Environment URLs (Dev = DDEV, Prod = same-origin):**
+- **Dev (`environment.ts`):** `drupalBaseUrl: 'http://drupalpoc.ddev.site'` — Angular dev server at `localhost:4200` makes cross-origin calls to local DDEV Drupal (CORS wildcard enabled for POC).
+- **Prod (`environment.prod.ts`):** `drupalBaseUrl: ''` (empty string) — All API calls are relative to the same origin. The AKS nginx ingress handles path-based routing (`/jsonapi/*` → drupal-service, `/api/*` → api-service). No hardcoded IPs.
+- **Correction:** Previous prod config had `drupalBaseUrl: '/drupal'` which was wrong — the ingress routes `/jsonapi/*` directly, not `/drupal/jsonapi/*`. Fixed to empty string.
+
+**Decision 3 — Pluralsight-Style Module Viewer:**
+Training modules use a two-column layout inspired by Pluralsight's course viewer:
+- **Left column:** Collapsible table-of-contents listing all modules (title, difficulty badge, duration)
+- **Right column:** Selected module detail — embedded YouTube/Vimeo video, title, description, metadata
+- Global app sidenav (Dashboard, Training Modules, Quiz, Results) remains unchanged
+- The two-column layout is nested within the content area of the `/modules` route
+- Route structure: `/modules` (list with first module selected) → `/modules/:id` (specific module selected)
+
+**Decision 4 — Read-Only Quiz (Phase 4):**
+The `QuizComponent` renders webform questions fetched from `/webform_rest/phishing_awareness_quiz/fields?_format=json` as Material cards with radio button options — but no submit/scoring functionality. This proves Angular can dynamically render quiz structure authored in Drupal. Interactive submission and .NET API scoring integration deferred to Phase 5.
+
+**[LLM_CONTEXT: Phase 4 uses a single DrupalService (not separate services — that's post-POC). Environment URLs: dev hits DDEV locally, prod uses empty base URLs with ingress routing. The module viewer follows Pluralsight's pattern: left sidebar TOC + right video/detail area, nested within the content area (NOT replacing the app sidenav). Quiz is read-only in Phase 4.]**
+
+#### Phase 4 Implementation
+
+##### DrupalService (`src/angular/src/app/services/drupal.service.ts`)
+
+Created a single injectable service with 3 methods:
+
+| Method | Endpoint | Returns |
+| :--- | :--- | :--- |
+| `getTrainingModules()` | `GET /jsonapi/node/training_module?include=field_category` | `Observable<TrainingModule[]>` |
+| `getTrainingModule(id)` | `GET /jsonapi/node/training_module/{id}?include=field_category` | `Observable<TrainingModule>` |
+| `getQuizFields(webformId)` | `GET /webform_rest/{id}/fields?_format=json` | `Observable<any>` |
+
+The `?include=field_category` parameter instructs JSON:API to sideload the taxonomy term via the `included` array, avoiding a separate request. Private `mapModule`/`mapModules` helpers resolve the taxonomy reference from the `included` array.
+
+`TrainingModule` interface: `{ id, title, description, videoUrl, difficulty, duration, category }`.
+
+##### ModulesComponent (`src/angular/src/app/pages/modules/modules.component.ts`)
+
+Replaced the stub with a Pluralsight-style module list:
+- Fetches all modules via `DrupalService.getTrainingModules()`
+- Groups modules by category into Material `MatExpansionPanel` sections (all expanded by default)
+- Each module row: play icon, title, color-coded difficulty chip (`beginner`=green, `intermediate`=yellow, `advanced`=red), duration chip with clock icon
+- `RouterLink` to `/modules/:id` for each module
+- Loading spinner while fetching
+
+##### ModuleDetailComponent (`src/angular/src/app/pages/module-detail/module-detail.component.ts`)
+
+New component for the `/modules/:id` route:
+- Fetches single module by UUID via `DrupalService.getTrainingModule(id)`
+- Converts YouTube/Vimeo watch URLs to embed format via `toEmbedUrl()` (regex extraction of video ID)
+- Renders 16:9 responsive iframe via `DomSanitizer.bypassSecurityTrustResourceUrl()`
+- Shows difficulty/duration/category chips, description card, back-to-list button
+
+##### QuizComponent (`src/angular/src/app/pages/quiz/quiz.component.ts`)
+
+Replaced the stub with a read-only quiz renderer:
+- Fetches webform field definitions from `/webform_rest/phishing_awareness_quiz/fields?_format=json`
+- Parses field `#type`, `#title`, `#options`, `#required` from Drupal's webform field structure
+- Renders each question as a Material card:
+  - `radios` → disabled `mat-radio-group`
+  - `checkboxes` → disabled `mat-checkbox` list
+  - `select` → rendered as disabled radio buttons for read-only display
+  - `textfield`/`textarea` → placeholder indicator
+- Blue preview banner explaining this is read-only data from Drupal Webforms
+- "Required" chip on mandatory questions
+- Error state handling if webform_rest endpoint is unavailable
+
+##### Routing (`src/angular/src/app/app.routes.ts`)
+
+| Path | Component | Notes |
+| :--- | :--- | :--- |
+| `/` | redirect → `/dashboard` | |
+| `/dashboard` | `DashboardComponent` | Stub |
+| `/modules` | `ModulesComponent` | Pluralsight-style list |
+| `/modules/:id` | `ModuleDetailComponent` | **NEW** — single module with video embed |
+| `/quiz` | `QuizComponent` | Read-only webform renderer |
+| `/results` | `ResultsComponent` | Stub |
+
+##### Angular Proxy Configuration (Dev Only)
+
+**Problem:** Angular dev server at `localhost:4200` making cross-origin requests to `drupalpoc.ddev.site` was blocked by CORS despite Drupal CORS being enabled — the Angular container running inside Docker couldn't resolve the DDEV hostname.
+
+**Solution:** Angular CLI proxy configuration (`src/angular/proxy.conf.json`) that intercepts `/jsonapi` and `/webform_rest` paths and forwards them to the DDEV router:
+
+```json
+{
+  "/jsonapi": {
+    "target": "http://ddev-router",
+    "secure": false,
+    "changeOrigin": true,
+    "headers": { "Host": "drupalpoc.ddev.site" }
+  },
+  "/webform_rest": {
+    "target": "http://ddev-router",
+    "secure": false,
+    "changeOrigin": true,
+    "headers": { "Host": "drupalpoc.ddev.site" }
+  }
+}
+```
+
+**Key details:**
+- The Angular Docker container runs on `--network ddev_default` to reach the DDEV Traefik router (`ddev-router`)
+- The `Host` header is required so Traefik routes the request to the correct DDEV project
+- Both `environment.ts` and `environment.prod.ts` use `drupalBaseUrl: ''` (empty string) — all API paths are relative, making the proxy transparent
+
+**Docker dev server command:**
+```bash
+docker run --rm -p 4200:4200 --network ddev_default \
+  -v "${PWD}/src/angular:/app" -w /app \
+  node:22-alpine npx ng serve --host 0.0.0.0 --proxy-config proxy.conf.json
+```
+
+##### Change Detection Bug (Resolved)
+
+**Symptom:** The "Training Modules" heading rendered but the expansion panels (actual module data) only appeared after interacting with the Material sidenav (e.g., toggling the hamburger menu).
+
+**Root cause:** Angular change detection issue. The HTTP response from `DrupalService` updated component properties (`groupedModules`, `loading`), but Angular didn't re-render the view until an unrelated DOM event (sidenav animation) triggered a change detection cycle.
+
+**Diagnosis:** Network tab confirmed the `/jsonapi/node/training_module?include=field_category` request fired and returned 200 on initial page load. The data was present in memory but not rendered.
+
+**Fix:** Added `ChangeDetectorRef.detectChanges()` in the HTTP subscription callback for all three data-fetching components:
+- `ModulesComponent` — after setting `groupedModules` and `loading`
+- `ModuleDetailComponent` — after setting `mod` and `safeVideoUrl`
+- `QuizComponent` — after setting `questions` and `loading`
+
+**Why this is needed:** The Angular dev server runs inside a Docker container with Vite. The combination of containerized execution, Vite's dev server, and Angular's zoneless or zone-constrained change detection can miss HTTP callback re-renders. `detectChanges()` forces synchronous view update.
+
+##### Files Created/Modified
+
+| File | Change |
+| :--- | :--- |
+| `src/angular/src/app/services/drupal.service.ts` | **NEW** — DrupalService + TrainingModule interface |
+| `src/angular/src/app/pages/modules/modules.component.ts` | **REPLACED** stub → Pluralsight-style expansion panel list |
+| `src/angular/src/app/pages/module-detail/module-detail.component.ts` | **NEW** — Module detail + video embed |
+| `src/angular/src/app/pages/quiz/quiz.component.ts` | **REPLACED** stub → Read-only webform quiz renderer |
+| `src/angular/src/app/app.routes.ts` | **MODIFIED** — Added `/modules/:id` route |
+| `src/angular/src/app/app.html` | **MODIFIED** — Sidenav mode adjustments (tested `mode="over"`, reverted to `mode="side" opened`) |
+| `src/angular/src/environments/environment.ts` | **MODIFIED** — `drupalBaseUrl: ''` (empty, proxy handles routing) |
+| `src/angular/src/environments/environment.prod.ts` | **MODIFIED** — All base URLs `''` |
+| `src/angular/proxy.conf.json` | **NEW** — Dev proxy targeting ddev-router |
+
+**[LLM_CONTEXT: Phase 4 Drupal integration is complete. DrupalService, ModulesComponent, ModuleDetailComponent, and QuizComponent are all built and compiling clean. The Angular dev server runs in Docker on the ddev_default network with a proxy to ddev-router. A ChangeDetectorRef.detectChanges() call is required in all HTTP subscription callbacks due to containerized Vite execution. The sidenav remains `mode="side" opened` — the `mode="over"` experiment was reverted after determining the rendering issue was change detection, not layout.]**

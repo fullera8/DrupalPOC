@@ -1,0 +1,35 @@
+<mat-toolbar color="primary">
+  <button mat-icon-button (click)="sidenav.toggle()">
+    <mat-icon>menu</mat-icon>
+  </button>
+  <span>TSUS Security Training</span>
+</mat-toolbar>
+
+<mat-sidenav-container class="app-container">
+  <mat-sidenav #sidenav mode="side" opened>
+    <mat-nav-list>
+      <a mat-list-item routerLink="/dashboard" routerLinkActive="active">
+        <mat-icon matListItemIcon>dashboard</mat-icon>
+        <span matListItemTitle>Dashboard</span>
+      </a>
+      <a mat-list-item routerLink="/modules" routerLinkActive="active">
+        <mat-icon matListItemIcon>school</mat-icon>
+        <span matListItemTitle>Training Modules</span>
+      </a>
+      <a mat-list-item routerLink="/quiz" routerLinkActive="active">
+        <mat-icon matListItemIcon>quiz</mat-icon>
+        <span matListItemTitle>Quiz</span>
+      </a>
+      <a mat-list-item routerLink="/results" routerLinkActive="active">
+        <mat-icon matListItemIcon>assessment</mat-icon>
+        <span matListItemTitle>Simulation Results</span>
+      </a>
+    </mat-nav-list>
+  </mat-sidenav>
+
+  <mat-sidenav-content>
+    <div class="content-area">
+      <router-outlet />
+    </div>
+  </mat-sidenav-content>
+</mat-sidenav-container>

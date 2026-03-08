@@ -6,8 +6,9 @@
 # Routing:
 #   /api/*     → api-service      (.NET 8 Web API — /api/results, /api/scores)
 #   /health    → api-service      (.NET 8 health check)
-#   /jsonapi/* → drupal-service   (Drupal JSON:API — /jsonapi/node/training_module)
-#   /*         → angular-service  (Angular SPA — default/catch-all)
+#   /jsonapi/*      → drupal-service   (Drupal JSON:API — /jsonapi/node/training_module)
+#   /webform_rest/* → drupal-service   (Webform REST — quiz elements + submissions)
+#   /*              → angular-service  (Angular SPA — default/catch-all)
 #
 # Admin-only services (not exposed through ingress):
 #   Drupal admin:  kubectl port-forward -n drupalpoc svc/drupal-service 8080:80
@@ -62,6 +63,15 @@ spec:
 
           # Drupal JSON:API — headless content delivery
           - path: /jsonapi
+            pathType: Prefix
+            backend:
+              service:
+                name: drupal-service
+                port:
+                  number: 80
+
+          # Drupal Webform REST — quiz elements + submissions
+          - path: /webform_rest
             pathType: Prefix
             backend:
               service:

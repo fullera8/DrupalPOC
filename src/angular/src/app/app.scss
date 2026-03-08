@@ -1,0 +1,19 @@
+.app-container {
+  position: absolute;
+  top: 64px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+}
+
+mat-sidenav {
+  width: 240px;
+}
+
+.content-area {
+  padding: 24px;
+}
+
+.active {
+  background-color: rgba(0, 0, 0, 0.04);
+}

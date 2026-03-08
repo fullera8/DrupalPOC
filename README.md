@@ -90,7 +90,7 @@ For the full architecture diagram (Mermaid), service inventory, build-vs-borrow 
 
 | Component | Technology | Version |
 | :--- | :--- | :--- |
-| Frontend | Angular + Angular Material + Chart.js | 19.x |
+| Frontend | Angular + Angular Material + Chart.js | 21.x |
 | Business API | .NET 8 Web API (EF Core 8.0.24, Minimal APIs) | 8.0.418 SDK |
 | CMS | Drupal (headless, JSON:API) | 11.3.3 |
 | Quizzes & Assessments | Drupal Webform (6.3.x-dev) | 6.3.x-dev (only D11-compatible branch) |

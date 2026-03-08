@@ -26,7 +26,7 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 
 **Confirmed (Day 1):**
 - **CMS:** Drupal 11.3.3 (headless, JSON:API + Webform 6.3.x-dev) — content authoring for training modules, quizzes, and assessments
-- **Frontend:** Angular 19.x (SPA) — student/faculty-facing training UI
+- **Frontend:** Angular 21.x (SPA) — student/faculty-facing training UI
 - **Backend API:** .NET 8 Web API — business logic, simulation engine, assessment scoring, analytics aggregation
 - **Phishing Engine:** GoPhish (latest, official Docker Hub image)
 - **Database:** Azure SQL Server `drupalpoc-sql` (centralus, Basic DTU 5) + Azure MySQL `drupalpoc-mysql` (centralus, Burstable B1ms)

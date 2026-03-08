@@ -1,0 +1,18 @@
+{
+  "/jsonapi": {
+    "target": "http://ddev-router",
+    "secure": false,
+    "changeOrigin": true,
+    "headers": {
+      "Host": "drupalpoc.ddev.site"
+    }
+  },
+  "/webform_rest": {
+    "target": "http://ddev-router",
+    "secure": false,
+    "changeOrigin": true,
+    "headers": {
+      "Host": "drupalpoc.ddev.site"
+    }
+  }
+}

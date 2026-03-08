@@ -30,7 +30,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 COPY docker/angular/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built Angular app from build stage
-# Angular 19 outputs to dist/<project-name>/browser/
+# Angular 21 outputs to dist/<project-name>/browser/
 COPY --from=build /app/dist/drupalpoc-angular/browser/ /usr/share/nginx/html/
 
 EXPOSE 80

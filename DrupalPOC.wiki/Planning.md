@@ -88,16 +88,16 @@
 ### Day 4 — Angular Frontend + Integrations
 
 **Angular Scaffold:**
-- [ ] Create Angular project with Angular Material
-- [ ] Configure routing (dashboard, modules, quiz, simulation results)
+- [x] Create Angular project with Angular Material
+- [x] Configure routing (dashboard, modules, quiz, simulation results)
 - [ ] Install Chart.js / ngx-charts for dashboard
 
 **Integrations:**
-- [ ] Connect to Drupal JSON:API (fetch training modules, display list)
+- [x] Connect to Drupal JSON:API (fetch training modules, display list)
 - [ ] Connect to .NET API (fetch scores, post results)
 - [ ] Connect to GoPhish REST API (fetch campaign results, click tracking stats)
-- [ ] Embed YouTube/Vimeo training video in module viewer
-- [ ] Build basic quiz component (renders Webform questions, submits answers)
+- [x] Embed YouTube/Vimeo training video in module viewer
+- [x] Build basic quiz component (renders Webform questions, read-only preview)
 
 ### Day 5 — Dashboard, Demo Data, Polish
 
@@ -145,5 +145,7 @@ These items are **intentionally deferred** from the POC. They represent the "sca
 - [ ] GitHub Actions CI/CD pipeline (automated build → GHCR → AKS)
 - [ ] Production Ingress with TLS certificates
 - [ ] Monitoring & logging (Azure Monitor, Application Insights)
+- [ ] Containerize Angular dev workflow (eliminate host `node_modules`) — POC scaffolds via `docker run --rm -v` which writes `node_modules` to the host volume. Production-grade approach: use a named Docker volume or multi-stage dev container so `node_modules` never lands on the host filesystem. This avoids platform-specific native module issues and ensures true "clone-and-go" portability.
+- [ ] Separate Angular services — POC uses a single `DrupalService` for all Drupal API calls (JSON:API + webform_rest). Post-POC: split into `TrainingModuleService`, `QuizService`, etc. based on client-specific requirements after bid is won.
 
 **[LLM_CONTEXT: This is the POC task tracker. Check boxes (- [x]) indicate completed items. The developer updates these as work progresses. Day 1 is the highest-risk day (Azure provisioning). If blocked, the fallback is DDEV local development. Post-POC backlog items should NOT be pulled into the POC timeline. The risk register identifies the most likely blockers and their mitigations.]**
