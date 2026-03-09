@@ -113,7 +113,7 @@
 - [x] Seed 1–2 GoPhish phishing campaigns with mock results
 - [ ] Seed Azure SQL with sample scores and completions
 - [ ] End-to-end walkthrough: trainee views module → takes quiz → views dashboard
-- [ ] Verify all services accessible via AKS ingress URL
+- [x] Verify all services accessible via AKS ingress URL
 - [ ] Take screenshots for wiki / pitch deck
 
 ---
