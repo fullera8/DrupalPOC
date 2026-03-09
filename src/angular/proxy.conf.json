@@ -14,5 +14,15 @@
     "headers": {
       "Host": "drupalpoc.ddev.site"
     }
+  },
+  "/api": {
+    "target": "http://host.docker.internal:5000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/health": {
+    "target": "http://host.docker.internal:5000",
+    "secure": false,
+    "changeOrigin": true
   }
 }

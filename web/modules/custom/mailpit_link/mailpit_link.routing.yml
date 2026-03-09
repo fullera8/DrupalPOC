@@ -1,0 +1,6 @@
+mailpit_link.redirect:
+  path: '/admin/mailpit'
+  defaults:
+    _controller: '\Drupal\mailpit_link\Controller\MailpitRedirectController::redirectToMailpit'
+  requirements:
+    _permission: 'access administration pages'

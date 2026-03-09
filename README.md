@@ -167,7 +167,12 @@ DrupalPOC/
 │   ├── Planning.md           # Day 1–5 task tracking with checkboxes
 │   ├── ChatLog.md            # Running conversation log for LLM context
 │   └── Metadata-Legend.md    # Tag definitions for wiki metadata
-├── scripts/                  # Idempotent PHP setup scripts (run via `ddev drush scr`)
+├── scripts/                  # Dev scripts + Drupal setup scripts
+│   ├── start-dev.ps1                     # One-command local dev startup (all services)
+│   ├── restart-docker.ps1                # Clean Docker Desktop restart (no Task Manager)
+│   ├── logs/                             # Runtime logs (git-ignored)
+│   │   ├── api.log                       # .NET API stdout/stderr
+│   │   └── angular.log                   # Angular dev server output
 │   ├── create_training_module_type.php   # Training Module content type + 6 fields + taxonomy
 │   ├── create_quiz_webform.php           # Phishing awareness quiz (5 questions + scoring)
 │   ├── seed_training_content.php         # 3 sample training modules
@@ -226,6 +231,64 @@ ddev launch
 ```
 
 **Local site URL:** `http://drupalpoc.ddev.site`
+
+---
+
+## Local Development
+
+Once the initial setup above is complete, use the automated startup script to boot all services with a single command:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1
+```
+
+This script handles everything in order:
+
+| Step | What It Does |
+| :--- | :--- |
+| 1. Docker pre-flight | Verifies Docker Desktop is responsive before proceeding |
+| 2. DDEV | Starts the DDEV environment (Drupal, MariaDB, Traefik router) |
+| 3. .NET API | Launches the .NET 8 API on `http://localhost:5000` in a background window |
+| 4. npm install | Checks Angular dependencies inside the DDEV container (first run only) |
+| 5. Angular dev server | Starts `ng serve` detached inside the container on `http://localhost:4200` |
+
+**Local URLs after startup:**
+
+| URL | Service |
+| :--- | :--- |
+| `http://localhost:4200` | Angular SPA (dashboard, modules, quiz, results) |
+| `http://localhost:5000/health` | .NET API health check |
+| `http://drupalpoc.ddev.site` | Drupal admin UI |
+
+Logs are written to `scripts/logs/api.log` and `scripts/logs/angular.log` for debugging.
+
+### Troubleshooting Docker Desktop
+
+Docker Desktop on Windows can freeze when long-lived container exec sessions are interrupted (e.g., by closing terminals or Task Manager). Symptoms include:
+
+- Containers visible in Docker Desktop but unresponsive
+- "Cannot stop Docker Compose application: Max retries reached" errors
+- `docker info` shows the client but fails with "The system cannot find the file specified" for the server
+
+**Do not use Task Manager to force-quit Docker.** Instead, use the clean restart script:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\restart-docker.ps1
+```
+
+This script:
+1. Kills orphaned `ddev` and script processes holding pipe connections
+2. Sends a graceful quit signal to Docker Desktop
+3. Force-stops any surviving Docker processes
+4. Terminates the WSL2 `docker-desktop` distro to clear stale pipe state
+5. Restarts Docker Desktop and waits for the engine to be ready
+
+### Stopping the Dev Environment
+
+To stop all services:
+1. The Angular dev server runs inside the DDEV container — it stops automatically with DDEV
+2. Close the minimized PowerShell window running the .NET API (or kill the `dotnet` process)
+3. Run `ddev stop` to shut down DDEV containers
 
 ---
 

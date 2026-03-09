@@ -1,12 +1,9 @@
 # =============================================================================
-# Angular SPA — Deployment + Service (Placeholder)
+# Angular SPA — Deployment + Service
 # =============================================================================
-# Uses nginx:alpine with a placeholder HTML page (via ConfigMap) until
-# the Angular app is built on Day 4. Once the Angular image is pushed to
-# GHCR, update the image to: ghcr.io/fullera8/drupalpoc-angular:latest
-# and remove the placeholder volume mount.
-#
-# No imagePullSecrets needed — nginx:alpine is a public Docker Hub image.
+# Built Angular 21 app with Dashboard, Training Modules, Quiz, Results,
+# GoPhish campaign integration. Served by Nginx.
+# Image: ghcr.io/fullera8/drupalpoc-angular:latest
 # =============================================================================
 
 apiVersion: apps/v1
@@ -26,15 +23,13 @@ spec:
       labels:
         app: angular
     spec:
+      imagePullSecrets:
+        - name: ghcr-secret
       containers:
         - name: angular
-          image: nginx:alpine
+          image: ghcr.io/fullera8/drupalpoc-angular:latest
           ports:
             - containerPort: 80
-          volumeMounts:
-            - name: placeholder-page
-              mountPath: /usr/share/nginx/html/index.html
-              subPath: index.html
           livenessProbe:
             httpGet:
               path: /
@@ -54,10 +49,6 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
-      volumes:
-        - name: placeholder-page
-          configMap:
-            name: angular-placeholder
 
 ---
 apiVersion: v1

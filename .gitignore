@@ -48,6 +48,9 @@
 .env
 .env.local
 
+# Deployment secrets (GHCR token, Azure config)
+scripts/.env.deploy
+
 # Ignore OS generated files
 .DS_Store
 Thumbs.db

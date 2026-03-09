@@ -1,0 +1,5 @@
+name: 'Mailpit Link'
+type: module
+description: 'Adds a Mailpit link to the admin toolbar for local email testing.'
+core_version_requirement: ^10 || ^11
+package: Custom

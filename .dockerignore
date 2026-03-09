@@ -36,5 +36,8 @@ web/sites/*/files
 **/bin
 **/obj
 
+# Node (npm ci in Dockerfile, don't copy local modules)
+**/node_modules
+
 # Misc
 powershell.txt

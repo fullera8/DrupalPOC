@@ -23,6 +23,16 @@ builder.Services.AddCors(options =>
     });
 });
 
+// HttpClient for GoPhish API proxy (self-signed cert in AKS cluster)
+builder.Services.AddHttpClient("gophish", client =>
+{
+    var baseUrl = builder.Configuration["GoPhish:BaseUrl"] ?? "https://gophish-service.drupalpoc:3333";
+    client.BaseAddress = new Uri(baseUrl);
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
+
 var app = builder.Build();
 
 // ---------------------------------------------------------------------------
@@ -72,6 +82,56 @@ app.MapGet("/api/scores", async (AppDbContext db) =>
         .OrderByDescending(r => r.CompletedAt)
         .ToListAsync();
     return Results.Ok(results);
+});
+
+// ---------------------------------------------------------------------------
+// GoPhish Proxy Endpoints — keeps API key server-side
+// ---------------------------------------------------------------------------
+var gpApiKey = app.Configuration["GoPhish:ApiKey"] ?? "";
+
+app.MapGet("/api/campaigns", async (IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        var client = httpClientFactory.CreateClient("gophish");
+        var response = await client.GetAsync($"/api/campaigns/?api_key={gpApiKey}");
+        var json = await response.Content.ReadAsStringAsync();
+        return Results.Content(json, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (HttpRequestException ex)
+    {
+        return Results.Json(new { error = "GoPhish unreachable", detail = ex.Message }, statusCode: 502);
+    }
+});
+
+app.MapGet("/api/campaigns/{id}", async (int id, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        var client = httpClientFactory.CreateClient("gophish");
+        var response = await client.GetAsync($"/api/campaigns/{id}?api_key={gpApiKey}");
+        var json = await response.Content.ReadAsStringAsync();
+        return Results.Content(json, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (HttpRequestException ex)
+    {
+        return Results.Json(new { error = "GoPhish unreachable", detail = ex.Message }, statusCode: 502);
+    }
+});
+
+app.MapGet("/api/campaigns/{id}/results", async (int id, IHttpClientFactory httpClientFactory) =>
+{
+    try
+    {
+        var client = httpClientFactory.CreateClient("gophish");
+        var response = await client.GetAsync($"/api/campaigns/{id}/results?api_key={gpApiKey}");
+        var json = await response.Content.ReadAsStringAsync();
+        return Results.Content(json, "application/json", statusCode: (int)response.StatusCode);
+    }
+    catch (HttpRequestException ex)
+    {
+        return Results.Json(new { error = "GoPhish unreachable", detail = ex.Message }, statusCode: 502);
+    }
 });
 
 app.Run();

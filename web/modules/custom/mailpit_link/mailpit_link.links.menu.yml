@@ -1,0 +1,7 @@
+mailpit_link.mailpit:
+  title: 'Mailpit'
+  description: 'Open Mailpit email testing UI'
+  route_name: mailpit_link.redirect
+  parent: system.admin
+  menu_name: admin
+  weight: 100

@@ -38,6 +38,9 @@ spec:
           image: ghcr.io/fullera8/drupalpoc-drupal:latest
           ports:
             - containerPort: 9000
+          env:
+            - name: MAILPIT_URL
+              value: "disabled"
           envFrom:
             - secretRef:
                 name: drupal-secrets

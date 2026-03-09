@@ -1,0 +1,13 @@
+<?php
+
+/**
+ * @file
+ * Attaches the Mailpit toolbar icon library.
+ */
+
+/**
+ * Implements hook_page_attachments().
+ */
+function mailpit_link_page_attachments(array &$attachments): void {
+  $attachments['#attached']['library'][] = 'mailpit_link/icons';
+}

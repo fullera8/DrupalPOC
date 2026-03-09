@@ -93,3 +93,29 @@ See **[📋 Planning](Planning)** for detailed task tracking.
    ddev drush scr scripts/configure_cors.php
    ```
 4. Read the [💬 Chat Log](ChatLog) for full setup history and architecture decisions
+
+## Local Development
+
+After initial setup, boot all services (DDEV, .NET API, Angular) with one command:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1
+```
+
+| URL | Service |
+| :--- | :--- |
+| `http://localhost:4200` | Angular SPA (dashboard, modules, quiz, results) |
+| `http://localhost:5000/health` | .NET API health check |
+| `http://drupalpoc.ddev.site` | Drupal admin UI |
+
+The script verifies Docker health, starts DDEV, launches the .NET API, checks npm dependencies, and starts the Angular dev server — with logs written to `scripts/logs/`.
+
+**If Docker Desktop freezes** (containers unresponsive, pipe errors), use the clean restart script instead of Task Manager:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\restart-docker.ps1
+```
+
+This kills orphaned processes, gracefully quits Docker Desktop, clears the WSL2 distro, and restarts cleanly. See the [README](../README.md#troubleshooting-docker-desktop) for full details.
+
+To stop: close the .NET API window, then run `ddev stop`.

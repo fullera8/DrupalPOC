@@ -38,6 +38,13 @@ spec:
                   key: ConnectionStrings__DefaultConnection
             - name: ASPNETCORE_ENVIRONMENT
               value: "Production"
+            - name: GoPhish__BaseUrl
+              value: "https://gophish-service.drupalpoc:3333"
+            - name: GoPhish__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: GoPhish__ApiKey
           livenessProbe:
             httpGet:
               path: /health

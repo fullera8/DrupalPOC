@@ -61,7 +61,7 @@
 - [x] Push 3 images to GHCR (`ghcr.io/fullera8/drupalpoc-*`)
 - [x] Verify images accessible via `docker manifest inspect`
 - [x] Build + push `drupalpoc-api` (Day 3 — .NET scaffold complete)
-- [ ] Build + push `drupalpoc-angular` (blocked on Day 4 Angular scaffold)
+- [x] Build + push `drupalpoc-angular` (Day 4 Angular scaffold complete)
 
 ### Day 3 — AKS Deployment + .NET Thin API
 
@@ -90,25 +90,27 @@
 **Angular Scaffold:**
 - [x] Create Angular project with Angular Material
 - [x] Configure routing (dashboard, modules, quiz, simulation results)
-- [ ] Install Chart.js / ngx-charts for dashboard
+- [x] Install Chart.js / ngx-charts for dashboard
 
 **Integrations:**
 - [x] Connect to Drupal JSON:API (fetch training modules, display list)
-- [ ] Connect to .NET API (fetch scores, post results)
-- [ ] Connect to GoPhish REST API (fetch campaign results, click tracking stats)
+- [x] Connect to .NET API (fetch scores, post results)
+- [x] Connect to GoPhish REST API (fetch campaign results, click tracking stats)
 - [x] Embed YouTube/Vimeo training video in module viewer
 - [x] Build basic quiz component (renders Webform questions, read-only preview)
+- [x] Upgrade quiz to interactive with scoring + .NET API submission
+- [x] Build results page with Material table + summary stats
 
 ### Day 5 — Dashboard, Demo Data, Polish
 
 **Reporting Dashboard:**
-- [ ] Build compliance dashboard page (Chart.js bar/pie charts)
-- [ ] Display: completion rates, simulation click rates, quiz scores
-- [ ] Pull data from .NET API + GoPhish API
+- [x] Build compliance dashboard page (Chart.js bar/pie charts)
+- [x] Display: completion rates, simulation click rates, quiz scores
+- [x] Pull data from .NET API + GoPhish API
 
 **Demo Data & Polish:**
 - [ ] Seed Drupal with 5–10 training modules across categories
-- [ ] Seed 1–2 GoPhish phishing campaigns with mock results
+- [x] Seed 1–2 GoPhish phishing campaigns with mock results
 - [ ] Seed Azure SQL with sample scores and completions
 - [ ] End-to-end walkthrough: trainee views module → takes quiz → views dashboard
 - [ ] Verify all services accessible via AKS ingress URL
@@ -147,5 +149,6 @@ These items are **intentionally deferred** from the POC. They represent the "sca
 - [ ] Monitoring & logging (Azure Monitor, Application Insights)
 - [ ] Containerize Angular dev workflow (eliminate host `node_modules`) — POC scaffolds via `docker run --rm -v` which writes `node_modules` to the host volume. Production-grade approach: use a named Docker volume or multi-stage dev container so `node_modules` never lands on the host filesystem. This avoids platform-specific native module issues and ensures true "clone-and-go" portability.
 - [ ] Separate Angular services — POC uses a single `DrupalService` for all Drupal API calls (JSON:API + webform_rest). Post-POC: split into `TrainingModuleService`, `QuizService`, etc. based on client-specific requirements after bid is won.
+- [ ] SMTP integration for phishing campaigns — POC uses Mailhog (DDEV-only) for email capture. Production requires a real SMTP relay (e.g., Azure Communication Services, SendGrid, or institutional SMTP) so GoPhish can deliver simulated phishing emails to actual user inboxes.
 
 **[LLM_CONTEXT: This is the POC task tracker. Check boxes (- [x]) indicate completed items. The developer updates these as work progresses. Day 1 is the highest-risk day (Azure provisioning). If blocked, the fallback is DDEV local development. Post-POC backlog items should NOT be pulled into the POC timeline. The risk register identifies the most likely blockers and their mitigations.]**

@@ -1,0 +1,5 @@
+# Expose Angular dev server port from web container
+services:
+  web:
+    ports:
+      - "4200:4200"
