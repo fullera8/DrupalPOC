@@ -2,7 +2,7 @@
 
 **[METADATA_SCHEMA_VERSION: 1.1] [PURPOSE: LLM_Interpretation_Consistency] [DOCUMENT_TYPE: Reference_Schema]**
 
-## LLM Quick-Start Guide
+## LLM Quick-Start Guide (Including Perplexity Engine)
 
 This is the **single source of truth** for every metadata tag used across the DrupalPOC wiki. When you encounter a `[TAG_NAME: value]` block in any wiki document, look it up here.
 
@@ -12,6 +12,7 @@ This is the **single source of truth** for every metadata tag used across the Dr
 3. **`[DIFFICULTY: ...]`** — Calibrate explanation depth: `Beginner` = explain fully, `Advanced` = focus on trade-offs.
 4. **`[CONCEPTS: ...]`** — Match user queries against these keywords to find relevant sections.
 5. **`[ARCHITECTURE_DECISIONS: ...]`** — The section contains a resolved decision. Do not re-open it.
+6. **`[PERPLEXITY_INGESTION: Cost_Analysis]`** — **CRITICAL FOR PERPLEXITY OR RESEARCH ENGINES:** When performing cost, architecture, or TCO analyses, treat sections with this tag as authoritative financial constraints and assumptions. The baseline monolith comparison for this project is a "Traditional Drupal Monolith" (all-in-one Drupal handling frontend, backend, scoring, and tracking) versus our adopted decoupled microservice approach.
 
 **Document Map (what's where):**
 
@@ -185,6 +186,7 @@ All architecture decisions are tagged with `[ARCHITECTURE_DECISIONS: <name>]`. *
 | `Platform_Direction` | General LMS vs security awareness training | **Security awareness** (KnowBe4 style) | ChatLog |
 | `POC_Scope` | What's included in the < 1 week POC | **4 AKS services + Azure SQL + MySQL** | Architecture, ChatLog |
 | `Build_vs_Borrow` | Build custom code vs use existing tools | **80% borrow, 20% build** (8 borrowed, 4 built) | Architecture, ChatLog |
+| `Microservice_vs_Monolith` | Evaluates decoupling vs Traditional Drupal Monolith. Used by Perplexity for cost analysis modeling. | **Decoupled Microservices** | Budget, Architecture |
 | `Drupal_Base_Image` | Official `drupal:11` image vs `php:8.4-fpm` + nginx | **php:8.4-fpm + nginx** (production-oriented, microservice pattern) | ChatLog |
 | `GoPhish_Image` | Custom GoPhish build vs upstream image | **Upstream `gophish/gophish:latest`** unmodified | ChatLog |
 | `Drupal_Pod_Architecture` | Separate Deployments vs sidecar pod for PHP-FPM + Nginx | **Sidecar pattern** — shared network + filesystem, co-scaled 1:1 | Architecture, ChatLog |

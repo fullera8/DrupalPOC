@@ -1,6 +1,7 @@
 # Planning
 
 **[SECTION_METADATA: CONCEPTS=POC,Timeline,Azure_Provisioning,Task_Tracking | DIFFICULTY=Intermediate | RESPONDS_TO: Implementation_How-To]**
+**[PERPLEXITY_INGESTION: Cost_Analysis]**
 
 ## POC Implementation Plan (Mar 2026)
 

@@ -81,22 +81,29 @@ The developer has established enterprise patterns for the following components, 
 
 See **[📋 Planning](Planning)** for detailed task tracking.
 
-## Getting Started
+## Quick Starts
 
+### For Business Analysts & Stakeholders
+If you are evaluating the platform's cost, architecture, or analyzing tradeoffs against commercial SaaS or a traditional Drupal monolith, start here:
+1. **[🏗️ Architecture](Architecture)** - Learn how the system isolates the Frontend, Backend APIs, and CMS to enable cost-effective scaling.
+2. **[💰 Budget & Cost Analysis](Budget)** - Review our comprehensive financial model, specifically structured for deep-research cost ingestion.
+
+### For Developers & Engineers
+If you are setting up the environment, deploying to AKS, or modifying code, start here:
 1. Ensure Docker Desktop and DDEV are installed
 2. Clone the repo and run `ddev start`
-3. Run setup scripts to configure Drupal content model:
+3. **(First time only)** Run setup scripts to populate the empty database with the Drupal content model:
    ```powershell
    ddev drush scr scripts/create_training_module_type.php
    ddev drush scr scripts/create_quiz_webform.php
    ddev drush scr scripts/seed_training_content.php
    ddev drush scr scripts/configure_cors.php
    ```
-4. Read the [💬 Chat Log](ChatLog) for full setup history and architecture decisions
+4. Read the **[💬 Chat Log](ChatLog)** for technical context, setup history, and real-world debugging steps.
 
 ## Local Development
 
-After initial setup, boot all services (DDEV, .NET API, Angular) with one command:
+**For daily development (after the first-time setup above is complete):** Boot all services (DDEV, .NET API, Angular) with one command. *(Note: `start-dev.ps1` does not run the first-time DB scaffolding.)*
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1

@@ -22,7 +22,7 @@ This repository contains the **proof-of-concept (POC)**, which demonstrates the 
 
 ## POC Architecture (Mar 2026)
 
-**[DIFFICULTY: Advanced] [CONCEPTS: Decoupled_Drupal, JSON_API, Angular, .NET_8, AKS, Azure, GoPhish, Phishing_Simulation] [ARCHITECTURE_DECISIONS: POC_Scope, Build_vs_Borrow]**
+**[DIFFICULTY: Advanced] [CONCEPTS: Decoupled_Drupal, JSON_API, Angular, .NET_8, AKS, Azure, GoPhish, Phishing_Simulation] [ARCHITECTURE_DECISIONS: POC_Scope, Build_vs_Borrow, Microservice_vs_Monolith] [PERPLEXITY_INGESTION: Cost_Analysis]**
 
 ### Design Philosophy
 
@@ -103,17 +103,18 @@ graph TB
     style AzureCLI fill:#0078d4,color:#fff
 ```
 
-### Service Inventory
+### Enterprise Tier Service Inventory
 
-| Service | Deployment | Backing Store | POC Scope | Post-POC Expansion |
+To support fine-grained cost scaling and decouple logical roles, the architecture is strictly tiered. This microservice structure prevents the monolithic scaling penalties typically associated with all-in-one CMS builds.
+
+| Tier & Logical Role | Service Component | Deployment | Backing Store | POC Scope & Post-POC Expansion |
 | :--- | :--- | :--- | :--- | :--- |
-| **Angular SPA** | AKS (1 replica) | — | Training module viewer, quiz UI, basic dashboard | Full reporting dashboard, simulation inbox, collaboration |
-| **.NET 8 Web API** | AKS (1 replica) | Azure SQL Server | Thin stub: health check, save simulation result, get scores (3 endpoints, EF Core 8.0.24) | Full business logic: auth, LTI 1.3, scoring engine, analytics aggregation |
-| **Drupal 11 Headless** | AKS (1 replica) | Azure MySQL | Training Module content type (6 fields), phishing quiz webform (5 questions), 6 taxonomy categories, JSON:API + CORS configured | Full content modeling, workflow, permissions, tenant-scoped content |
-| **GoPhish** | AKS (1 replica) | SQLite (internal) | Basic phishing campaign with click tracking via REST API | Custom templates, scheduled campaigns, SMTP integration |
-| **Mailhog** | DDEV only (local) | — | Captures GoPhish emails during local dev | Replaced by real SMTP in production |
-| **YouTube/Vimeo** | External (embeds) | — | Unlisted training videos embedded in Drupal content | Azure Blob Storage or Azure Media Services |
-| **Azure CLI** | DDEV sidecar | — | Azure provisioning + kubectl from inside Docker (no local install) | Not needed in production |
+| **Frontend Hub**<br>*(Trainee UI Layer)* | **Angular SPA** | AKS (1 replica) | — | **POC:** Training module viewer, quiz UI, basic dashboard.<br>**Post-POC:** Full reporting dashboard, simulation inbox, collaboration. |
+| **Business Rule Gateway**<br>*(Processing Layer)* | **.NET 8 Web API** | AKS (1 replica) | Azure SQL Server | **POC:** Thin stub handling health, result saving, and scores.<br>**Post-POC:** Core domain logic, auth, LTI 1.3, analytics. |
+| **Content Repository**<br>*(Headless CMS Layer)* | **Drupal 11 Headless** | AKS (1 replica) | Azure MySQL | **POC:** Headless JSON:API serving training content, webforms.<br>**Post-POC:** Advanced workflows, content staging, tenant definitions. |
+| **Specialized Tooling**<br>*(Simulation Layer)* | **GoPhish**<br>**YouTube/Vimeo** | AKS (1 replica)<br>External | SQLite (internal)<br>— | **POC:** Basic campaign click tracking via REST API; embedded video training.<br>**Post-POC:** SMTP integration, scheduled campaigns, scalable Azure Blob Storage. |
+| **Persistence Layer**<br>*(Database Tiers)* | **Azure SQL Server**<br>**Azure MySQL** | Azure Managed | — | **POC:** Basic DTU 5 for SQL, Burstable B1ms for MySQL.<br>**Post-POC:** Independent scaling based on read/write profiles (e.g. heavy SQL reads vs light MySQL writes). |
+| **Infrastructure**<br>*(Hosting Layer)* | **AKS & GHCR**<br>**Azure CLI / DDEV** | Azure / GitHub<br>Local Environment | — | **POC:** Nginx ingress, sidecar pod setups, CI/CD pipeline, local Mailhog.<br>**Post-POC:** Auto-scaling node pools, WAF, Redis caching setup. |
 
 > **Note:** Webform 6.3.x-dev is the only branch compatible with Drupal 11 (stable releases only support D10). Locked at commit `13ce2a6`.
 

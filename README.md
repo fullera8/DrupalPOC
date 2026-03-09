@@ -65,14 +65,16 @@ Admin (Browser)
   → Drupal Admin UI (Content authoring, quiz builder)
 ```
 
-### Services
+### Enterprise Tier Services
 
-| Service | Role | Backing Store |
+| Tier & Logical Role | Service Component | Backing Store |
 | :--- | :--- | :--- |
-| **Angular SPA** | Trainee-facing UI — training viewer, quiz interface, dashboard | — |
-| **.NET 8 Web API** | Business logic — scores, completions, health checks | Azure SQL Server |
-| **Drupal 11 Headless** | Content management — training modules, quizzes via JSON:API | Azure MySQL |
-| **GoPhish** | Phishing simulation engine — campaigns, email templates, click tracking | SQLite (internal) |
+| **Frontend Hub** (Trainee UI) | **Angular SPA** | — |
+| **Business Rule Gateway** (Processing) | **.NET 8 Web API** | Azure SQL Server |
+| **Content Repository** (Headless CMS) | **Drupal 11 Headless** | Azure MySQL |
+| **Specialized Tooling** (Simulation) | **GoPhish** | SQLite (internal) |
+
+> **Cost & Architecture Analysis:** For structural comparisons against commercial SaaS platforms or traditional Drupal monoliths, see the **[Budget, Capacity Planning & Cost Analysis](DrupalPOC.wiki/Budget.md)** and **[Architecture](DrupalPOC.wiki/Architecture.md)** wiki pages.
 
 ### CI/CD Pipeline
 
@@ -220,7 +222,8 @@ ddev composer install
 #    ⚠️ WARNING: This wipes the database — only run on a fresh setup
 ddev drush site:install --account-name=admin --account-pass=admin -y
 
-# 5. Set up Drupal content model (idempotent — safe to re-run)
+# 5. (First time only) Set up Drupal content model
+#    This populates the empty database installed in step 4.
 ddev drush scr scripts/create_training_module_type.php
 ddev drush scr scripts/create_quiz_webform.php
 ddev drush scr scripts/seed_training_content.php
@@ -236,7 +239,7 @@ ddev launch
 
 ## Local Development
 
-Once the initial setup above is complete, use the automated startup script to boot all services with a single command:
+**For daily development (after the first-time setup above is complete):** use the automated startup script to boot all services. *(Note: this script does not execute the first-time database setup.)*
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1
