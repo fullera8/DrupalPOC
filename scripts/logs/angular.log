@@ -14,10 +14,10 @@ styles.css          | styles        | 215 bytes |
 
                     | Initial total | 124.90 kB
 
-Application bundle generation complete. [5.167 seconds] - 2026-03-09T00:54:36.742Z
+Application bundle generation complete. [9.073 seconds] - 2026-03-10T17:32:27.295Z
 
 Watch mode enabled. Watching for file changes...
 NOTE: Raw file sizes do not reflect development server per-request transformations.
   Γ₧£  Local:   http://localhost:4200/
-  Γ₧£  Network: http://172.21.0.3:4200/
-  Γ₧£  Network: http://172.20.0.5:4200/
+  Γ₧£  Network: http://172.20.0.4:4200/
+  Γ₧£  Network: http://172.21.0.4:4200/
