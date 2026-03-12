@@ -51,6 +51,9 @@
 # Deployment secrets (GHCR token, Azure config)
 scripts/.env.deploy
 
+# Runtime logs (contain API keys in HTTP traces)
+scripts/logs/*.log
+
 # Ignore OS generated files
 .DS_Store
 Thumbs.db

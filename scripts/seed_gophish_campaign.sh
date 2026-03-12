@@ -8,8 +8,8 @@
 # Creates: 1 sending profile, 1 email template, 1 landing page, 1 group, 1 campaign
 # =============================================================================
 
-GP_URL="https://gophish-service.drupalpoc:3333"
-API_KEY="***REDACTED_GOPHISH_KEY***"
+GP_URL="${GP_URL:-https://gophish-service.drupalpoc:3333}"
+API_KEY="${GP_API_KEY:?Error: GP_API_KEY environment variable is required}"
 LOG="/tmp/gp_seed.log"
 rm -f "$LOG"
 
