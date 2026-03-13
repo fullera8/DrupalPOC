@@ -3,12 +3,18 @@
 # GoPhish Campaign Seeder — POC
 # =============================================================================
 # Seeds GoPhish with a minimal phishing simulation campaign for the POC demo.
-# Run inside a pod that can reach gophish-service.drupalpoc:3333 (e.g., Drupal pod).
+#
+# AKS usage (from Drupal pod):
+#   GP_API_KEY=<key> GP_URL=https://gophish-service.drupalpoc:3333 sh seed_gophish_campaign.sh
+#
+# Local DDEV usage (from web container):
+#   GP_API_KEY=<key> GP_URL=https://ddev-DrupalPOC-gophish:3333 GP_SMTP_HOST=ddev-DrupalPOC-web:1025 sh seed_gophish_campaign.sh
 #
 # Creates: 1 sending profile, 1 email template, 1 landing page, 1 group, 1 campaign
 # =============================================================================
 
 GP_URL="${GP_URL:-https://gophish-service.drupalpoc:3333}"
+GP_SMTP_HOST="${GP_SMTP_HOST:-localhost:25}"
 API_KEY="${GP_API_KEY:?Error: GP_API_KEY environment variable is required}"
 LOG="/tmp/gp_seed.log"
 rm -f "$LOG"
@@ -25,12 +31,12 @@ echo "=== GoPhish Campaign Seeder ===" >> "$LOG"
 
 # 1. Create Sending Profile (SMTP configuration)
 echo "--- Creating Sending Profile ---" >> "$LOG"
-SMTP_RESP=$(api POST smtp '{
-  "name": "TSUS IT Helpdesk",
-  "host": "localhost:25",
-  "from_address": "helpdesk@tsus.edu",
-  "ignore_cert_errors": true
-}')
+SMTP_RESP=$(api POST smtp "{
+  \"name\": \"TSUS IT Helpdesk\",
+  \"host\": \"$GP_SMTP_HOST\",
+  \"from_address\": \"helpdesk@tsus.edu\",
+  \"ignore_cert_errors\": true
+}")
 SMTP_ID=$(echo "$SMTP_RESP" | grep -o '"id": *[0-9]*' | head -1 | grep -o '[0-9]*')
 echo "SMTP_ID=$SMTP_ID" >> "$LOG"
 echo "$SMTP_RESP" >> "$LOG"

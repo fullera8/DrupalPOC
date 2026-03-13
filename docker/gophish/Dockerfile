@@ -7,7 +7,7 @@
 #
 # Image: ghcr.io/fullera8/drupalpoc-gophish:latest
 # Ports: 3333 (admin UI), 8080 (phishing listener)
-# Data:  SQLite (internal, /opt/gophish/gophish.db)
+# Data:  MySQL/MariaDB (external, persistent)
 # =============================================================================
 
 FROM gophish/gophish:latest

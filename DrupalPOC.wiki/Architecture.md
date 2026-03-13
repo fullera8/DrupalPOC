@@ -50,7 +50,7 @@ graph TB
         end
 
         subgraph "Simulation Tier"
-            GoPhish["📧 GoPhish<br/>(Phishing Campaigns)<br/>REST API + Click Tracking"]
+            GoPhish["📧 GoPhish<br/>(Phishing Campaigns)<br/>REST API + Click Tracking<br/>Azure MySQL / MariaDB"]
         end
 
         Angular -- "JSON:API<br/>(Training Content,<br/>Quizzes)" --> Drupal
@@ -71,7 +71,7 @@ graph TB
 
     subgraph "Local Development Only"
         DDEV["🐳 DDEV v1.25.0<br/>(PHP 8.4 · MariaDB 11.8 · Drush 13.7.1)"]
-        Mailhog["📬 Mailhog<br/>(Email Capture)"]
+        Mailhog["📬 Mailpit<br/>(Email Capture)"]
         AzureCLI["☁️ Azure CLI Sidecar<br/>(mcr.microsoft.com/azure-cli)<br/>kubectl · az commands"]
         DDEV --> Mailhog
         DDEV --> AzureCLI
@@ -112,7 +112,7 @@ To support fine-grained cost scaling and decouple logical roles, the architectur
 | **Frontend Hub**<br>*(Trainee UI Layer)* | **Angular SPA** | AKS (1 replica) | — | **POC:** Training module viewer, quiz UI, basic dashboard.<br>**Post-POC:** Full reporting dashboard, simulation inbox, collaboration. |
 | **Business Rule Gateway**<br>*(Processing Layer)* | **.NET 8 Web API** | AKS (1 replica) | Azure SQL Server | **POC:** Thin stub handling health, result saving, and scores.<br>**Post-POC:** Core domain logic, auth, LTI 1.3, analytics. |
 | **Content Repository**<br>*(Headless CMS Layer)* | **Drupal 11 Headless** | AKS (1 replica) | Azure MySQL | **POC:** Headless JSON:API serving training content, webforms.<br>**Post-POC:** Advanced workflows, content staging, tenant definitions. |
-| **Specialized Tooling**<br>*(Simulation Layer)* | **GoPhish**<br>**YouTube/Vimeo** | AKS (1 replica)<br>External | SQLite (internal)<br>— | **POC:** Basic campaign click tracking via REST API; embedded video training.<br>**Post-POC:** SMTP integration, scheduled campaigns, scalable Azure Blob Storage. |
+| **Specialized Tooling**<br>*(Simulation Layer)* | **GoPhish**<br>**YouTube/Vimeo** | AKS (1 replica)<br>External | Azure MySQL (gophish DB) / MariaDB (local dev)<br>— | **POC:** Basic campaign click tracking via REST API; embedded video training.<br>**Post-POC:** SMTP integration, scheduled campaigns, scalable Azure Blob Storage. |
 | **Persistence Layer**<br>*(Database Tiers)* | **Azure SQL Server**<br>**Azure MySQL** | Azure Managed | — | **POC:** Basic DTU 5 for SQL, Burstable B1ms for MySQL.<br>**Post-POC:** Independent scaling based on read/write profiles (e.g. heavy SQL reads vs light MySQL writes). |
 | **Infrastructure**<br>*(Hosting Layer)* | **AKS & GHCR**<br>**Azure CLI / DDEV** | Azure / GitHub<br>Local Environment | — | **POC:** Nginx ingress, sidecar pod setups, CI/CD pipeline, local Mailhog.<br>**Post-POC:** Auto-scaling node pools, WAF, Redis caching setup. |
 
@@ -153,10 +153,10 @@ DrupalPOC/
 └── DrupalPOC.wiki/           ← Project wiki (architecture, planning, chat log)
 ```
 
-| Environment | Drupal | .NET API | Angular |
-| :--- | :--- | :--- | :--- |
-| **Local dev** | `ddev start` → `http://drupalpoc.ddev.site` | `dotnet run` → `http://localhost:5000` | `ng serve` → `http://localhost:4200` |
-| **AKS (production)** | K8s Service → `http://drupal-service:80` | K8s Service → `http://api-service:80` | K8s Service → `http://angular-service:80` |
+| Environment | Drupal | .NET API | Angular | GoPhish |
+| :--- | :--- | :--- | :--- | :--- |
+| **Local dev** | `ddev start` → `http://drupalpoc.ddev.site` | `dotnet run` → `http://localhost:5000` | `ng serve` → `http://localhost:4200` | DDEV sidecar → `https://localhost:3333` |
+| **AKS (production)** | K8s Service → `http://drupal-service:80` | K8s Service → `http://api-service:80` | K8s Service → `http://angular-service:80` | K8s Service → `https://gophish-service:3333` |
 
 ### Drupal Pod Architecture (PHP-FPM + Nginx Sidecar)
 

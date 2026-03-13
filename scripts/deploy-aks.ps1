@@ -6,7 +6,7 @@
 #
 # Prerequisites:
 #   - Docker Desktop running
-#   - DDEV running (`ddev start`) — the azure-cli sidecar must be up
+#   - DDEV running (`ddev start`) -- the azure-cli sidecar must be up
 #   - scripts/.env.deploy populated with GHCR_TOKEN
 #   - Azure login active in sidecar (`ddev exec -s azure-cli az login`)
 #
@@ -340,6 +340,104 @@ if ($drupalPod) {
     Write-Warn "Could not find Drupal pod for post-deploy setup."
 }
 
+# -- GoPhish API Key Sync (prevents AKS <-> local key drift) -------------------
+# Trigger: Query Azure MySQL for the GoPhish admin API key.
+# If the query succeeds, GoPhish has connected and migrated successfully.
+# Compare with the current K8s api-secrets value; sync if different.
+Write-Log ""
+Write-Log "--- GoPhish API Key Sync ---"
+
+# Ensure mysql client is available in the azure-cli sidecar
+$mysqlCheck = ddev exec -s azure-cli sh -c "which mysql 2>/dev/null" 2>$null | Out-String
+if (-not ($mysqlCheck -match '/usr/bin/mysql|/usr/local/bin/mysql')) {
+    Write-Log "Installing mysql client in azure-cli sidecar..."
+    ddev exec -s azure-cli sh -c "apk add --no-cache mysql-client 2>/dev/null || apt-get update && apt-get install -y default-mysql-client 2>/dev/null" 2>$null | Out-Null
+}
+
+# Read MySQL connection details from K8s secrets (same Azure MySQL server)
+$dbHost = (ddev exec -s azure-cli kubectl get secret drupal-secrets -n $AksNamespace -o "jsonpath={.data.DRUPAL_DB_HOST}" 2>$null | Out-String).Trim()
+if ($dbHost) {
+    $dbHost = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($dbHost))
+}
+$gpDbPass = (ddev exec -s azure-cli kubectl get secret gophish-secrets -n $AksNamespace -o "jsonpath={.data.GOPHISH_DB_PASSWORD}" 2>$null | Out-String).Trim()
+if ($gpDbPass) {
+    $gpDbPass = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($gpDbPass))
+}
+
+if (-not $dbHost -or -not $gpDbPass) {
+    Write-Warn "Could not read MySQL credentials from K8s secrets. Skipping GoPhish key sync."
+} else {
+    # Trigger: retry until GoPhish has connected to MySQL and migrated the users table
+    $gpApiKey = $null
+    $maxRetries = 12  # 12 x 5s = 60s max wait
+    for ($i = 1; $i -le $maxRetries; $i++) {
+        Write-Log "Querying GoPhish API key from Azure MySQL (attempt $i/$maxRetries)..."
+        $queryResult = ddev exec -s azure-cli sh -c "mysql -h '$dbHost' -u gophish -p'$gpDbPass' --ssl -N -e 'SELECT api_key FROM users WHERE username=''admin'';' gophish 2>/dev/null" 2>$null | Out-String
+        $queryResult = $queryResult.Trim()
+
+        if ($queryResult -match '^[a-f0-9]{64}$') {
+            $gpApiKey = $queryResult
+            Write-Ok "GoPhish confirmed healthy on MySQL. API key retrieved."
+            break
+        }
+        if ($i -lt $maxRetries) { Start-Sleep -Seconds 5 }
+    }
+
+    if (-not $gpApiKey) {
+        Write-Warn "Could not retrieve GoPhish API key from MySQL after $maxRetries attempts. Skipping sync."
+    } else {
+        # Read current K8s secret value
+        $currentB64 = (ddev exec -s azure-cli kubectl get secret api-secrets -n $AksNamespace -o "jsonpath={.data.GoPhish__ApiKey}" 2>$null | Out-String).Trim()
+        $currentKey = $null
+        if ($currentB64) {
+            try { $currentKey = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($currentB64)) } catch {}
+        }
+
+        if ($gpApiKey -eq $currentKey) {
+            Write-Ok "GoPhish API key is already in sync -- no changes needed."
+        } else {
+            Write-Log "GoPhish API key has changed. Syncing to K8s secret, secrets.yaml, and appsettings.Development.json..."
+
+            # 1. Patch live K8s secret
+            $newB64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($gpApiKey))
+            $patchJson = '[{"op":"replace","path":"/data/GoPhish__ApiKey","value":"' + $newB64 + '"}]'
+            ddev exec -s azure-cli kubectl patch secret api-secrets -n $AksNamespace --type=json -p $patchJson 2>&1 | ForEach-Object { Write-Log $_ }
+            Write-Ok "K8s api-secrets patched."
+
+            # 2. Restart API deployment to pick up new secret
+            Write-Log "Restarting API deployment..."
+            ddev exec -s azure-cli kubectl rollout restart deployment/api -n $AksNamespace 2>&1 | ForEach-Object { Write-Log $_ }
+            ddev exec -s azure-cli kubectl rollout status deployment/api -n $AksNamespace --timeout=90s 2>&1 | ForEach-Object { Write-Log $_ }
+            Write-Ok "API deployment restarted with new GoPhish key."
+
+            # 3. Update k8s/secrets.yaml (GoPhish__ApiKey placeholder line)
+            $secretsYaml = Join-Path $ProjectRoot 'k8s/secrets.yaml'
+            if (Test-Path $secretsYaml) {
+                $content = Get-Content $secretsYaml -Raw
+                # Match the GoPhish__ApiKey line under api-secrets -- replace whatever value is there
+                $replacement = '${1}' + $gpApiKey + '"'
+                $content = $content -replace '(GoPhish__ApiKey:\s*")([^"]*)"', $replacement
+                [System.IO.File]::WriteAllText($secretsYaml, $content)
+                Write-Ok "k8s/secrets.yaml updated with current GoPhish API key."
+            }
+
+            # 4. Update appsettings.Development.json
+            $appSettingsPath = Join-Path $ProjectRoot 'src/DrupalPOC.Api/appsettings.Development.json'
+            if (Test-Path $appSettingsPath) {
+                $json = Get-Content $appSettingsPath -Raw | ConvertFrom-Json
+                if ($json.GoPhish -and $json.GoPhish.ApiKey -ne $gpApiKey) {
+                    $json.GoPhish.ApiKey = $gpApiKey
+                    $json | ConvertTo-Json -Depth 10 | Set-Content $appSettingsPath -Encoding UTF8
+                    Write-Ok "appsettings.Development.json updated with current GoPhish API key."
+                } else {
+                    Write-Log "appsettings.Development.json already has the correct key."
+                }
+            }
+        }
+    }
+}
+Write-Log "--- End GoPhish API Key Sync ---"
+
 # == 6. Verify =================================================================
 $currentStep++
 Write-Step $currentStep $steps "Verifying deployment..."
@@ -359,6 +457,7 @@ $endpoints = @(
     @{ Path = '/health';        Name = 'API Health' }
     @{ Path = '/';              Name = 'Angular SPA' }
     @{ Path = '/api/scores';    Name = 'API Scores' }
+    @{ Path = '/api/campaigns'; Name = 'GoPhish Campaigns (via API proxy)' }
     @{ Path = '/jsonapi';       Name = 'Drupal JSON:API' }
 )
 

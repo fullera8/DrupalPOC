@@ -72,7 +72,7 @@ Admin (Browser)
 | **Frontend Hub** (Trainee UI) | **Angular SPA** | — |
 | **Business Rule Gateway** (Processing) | **.NET 8 Web API** | Azure SQL Server |
 | **Content Repository** (Headless CMS) | **Drupal 11 Headless** | Azure MySQL |
-| **Specialized Tooling** (Simulation) | **GoPhish** | SQLite (internal) |
+| **Specialized Tooling** (Simulation) | **GoPhish** | Azure MySQL (AKS) / MariaDB (local dev) |
 
 > **Cost & Architecture Analysis:** For structural comparisons against commercial SaaS platforms or traditional Drupal monoliths, see the **[Budget, Capacity Planning & Cost Analysis](DrupalPOC.wiki/Budget.md)** and **[Architecture](DrupalPOC.wiki/Architecture.md)** wiki pages.
 
@@ -112,7 +112,7 @@ For the full architecture diagram (Mermaid), service inventory, build-vs-borrow 
 | CI/CD | GitHub Actions | Build → GHCR → AKS |
 | Local Development | DDEV v1.25.0 (Docker-based) | PHP 8.4, MariaDB 11.8, Drush 13.7.1 |
 | Azure CLI | Containerized DDEV sidecar | `mcr.microsoft.com/azure-cli:latest` + kubectl |
-| Local Email Testing | Mailhog (built into DDEV) | Captures GoPhish emails locally |
+| Local Email Testing | Mailpit (built into DDEV) | Captures GoPhish emails locally |
 
 ### Planned (Post-POC)
 
@@ -145,7 +145,9 @@ DrupalPOC/
 │   │   ├── nginx.conf        # Drupal front-controller + PHP-FPM proxy + /healthz
 │   │   └── settings.php      # Production settings (Azure MySQL via env vars)
 │   └── gophish/
-│       └── Dockerfile        # Thin wrapper on gophish/gophish:latest
+│       ├── Dockerfile        # Thin wrapper on gophish/gophish:latest
+│       ├── config.json       # Production config template (Azure MySQL, credential placeholder)
+│       └── config.local.json # Local dev config (DDEV MariaDB)
 ├── k8s/                      # Kubernetes deployment manifests (Day 3)
 │   ├── namespace.yaml        # drupalpoc namespace
 │   ├── secrets.yaml          # Placeholder — real secrets created via kubectl
@@ -178,7 +180,9 @@ DrupalPOC/
 │   ├── create_training_module_type.php   # Training Module content type + 6 fields + taxonomy
 │   ├── create_quiz_webform.php           # Phishing awareness quiz (5 questions + scoring)
 │   ├── seed_training_content.php         # 3 sample training modules
-│   └── configure_cors.php               # CORS configuration for Angular SPA
+│   ├── configure_cors.php               # CORS configuration for Angular SPA
+│   ├── seed_gophish_campaign.sh          # Seeds GoPhish with a demo phishing campaign
+│   └── seed_gophish_local.ps1            # Dumps production GoPhish data to local DDEV MariaDB
 ├── recipes/                  # Drupal recipes
 ├── vendor/                   # Composer dependencies (git-ignored)
 └── web/                      # Drupal webroot (core is git-ignored)
@@ -250,10 +254,11 @@ This script handles everything in order:
 | Step | What It Does |
 | :--- | :--- |
 | 1. Docker pre-flight | Verifies Docker Desktop is responsive before proceeding |
-| 2. DDEV | Starts the DDEV environment (Drupal, MariaDB, Traefik router) |
-| 3. .NET API | Launches the .NET 8 API on `http://localhost:5000` in a background window |
-| 4. npm install | Checks Angular dependencies inside the DDEV container (first run only) |
-| 5. Angular dev server | Starts `ng serve` detached inside the container on `http://localhost:4200` |
+| 2. GoPhish health check | Waits for the GoPhish admin UI on `https://localhost:3333` (30 s timeout, non-fatal) |
+| 3. DDEV | Starts the DDEV environment (Drupal, MariaDB, GoPhish, Traefik router) |
+| 4. .NET API | Launches the .NET 8 API on `http://localhost:5000` in a background window |
+| 5. npm install | Checks Angular dependencies inside the DDEV container (first run only) |
+| 6. Angular dev server | Starts `ng serve` detached inside the container on `http://localhost:4200` |
 
 **Local URLs after startup:**
 
@@ -262,6 +267,9 @@ This script handles everything in order:
 | `http://localhost:4200` | Angular SPA (dashboard, modules, quiz, results) |
 | `http://localhost:5000/health` | .NET API health check |
 | `http://drupalpoc.ddev.site` | Drupal admin UI |
+| `https://localhost:3333` | GoPhish admin UI |
+| `http://localhost:8888` | GoPhish phishing listener |
+| `https://drupalpoc.ddev.site:8026` | Mailpit Web UI (captured GoPhish emails) |
 
 Logs are written to `scripts/logs/api.log` and `scripts/logs/angular.log` for debugging.
 

@@ -109,3 +109,32 @@ data:
       </div>
     </body>
     </html>
+
+---
+# GoPhish — config.json template for Azure MySQL
+# The GOPHISH_DB_PASSWORD placeholder is replaced at pod startup by the init
+# container using the value from the gophish-secrets Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gophish-config
+  namespace: drupalpoc
+  labels:
+    app: gophish
+data:
+  config.json: |
+    {
+      "admin_server": {
+        "listen_url": "0.0.0.0:3333",
+        "use_tls": true,
+        "cert_path": "gophish_admin.crt",
+        "key_path": "gophish_admin.key"
+      },
+      "phish_server": {
+        "listen_url": "0.0.0.0:8080",
+        "use_tls": false
+      },
+      "db_name": "mysql",
+      "db_path": "gophish:GOPHISH_DB_PASSWORD@tcp(drupalpoc-mysql.mysql.database.azure.com:3306)/gophish?charset=utf8&parseTime=True&loc=UTC&tls=skip-verify",
+      "migrations_prefix": "db/db_"
+    }

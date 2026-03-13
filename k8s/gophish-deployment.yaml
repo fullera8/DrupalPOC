@@ -3,7 +3,7 @@
 # =============================================================================
 # Phishing simulation engine with REST API + click tracking.
 # Ports: 3333 (admin UI, HTTPS w/ self-signed cert), 8080 (phish listener)
-# Data:  SQLite (internal, ephemeral for POC — lost on pod restart)
+# Data:  Azure MySQL (persistent)
 #
 # Access admin UI via port-forward (not exposed through ingress):
 #   kubectl port-forward -n drupalpoc svc/gophish-service 3333:3333
@@ -31,6 +31,27 @@ spec:
     spec:
       imagePullSecrets:
         - name: ghcr-secret
+      # Init container: inject DB password from Secret into config.json template
+      initContainers:
+        - name: config-inject
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              sed "s/GOPHISH_DB_PASSWORD/${GOPHISH_DB_PASSWORD}/g" \
+                /config-template/config.json > /opt/gophish-config/config.json
+              echo "config.json injected with credentials"
+          env:
+            - name: GOPHISH_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gophish-secrets
+                  key: GOPHISH_DB_PASSWORD
+          volumeMounts:
+            - name: config-template
+              mountPath: /config-template
+            - name: gophish-config-vol
+              mountPath: /opt/gophish-config
       containers:
         - name: gophish
           image: ghcr.io/fullera8/drupalpoc-gophish:latest
@@ -39,6 +60,10 @@ spec:
               name: admin
             - containerPort: 8080
               name: phish
+          volumeMounts:
+            - name: gophish-config-vol
+              mountPath: /opt/gophish/config.json
+              subPath: config.json
           # GoPhish admin uses HTTPS with self-signed cert — use TCP probe
           livenessProbe:
             tcpSocket:
@@ -57,6 +82,12 @@ spec:
             limits:
               cpu: 300m
               memory: 256Mi
+      volumes:
+        - name: config-template
+          configMap:
+            name: gophish-config
+        - name: gophish-config-vol
+          emptyDir: {}
 
 ---
 apiVersion: v1

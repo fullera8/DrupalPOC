@@ -28,7 +28,7 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 - **CMS:** Drupal 11.3.3 (headless, JSON:API + Webform 6.3.x-dev) — content authoring for training modules, quizzes, and assessments
 - **Frontend:** Angular 21.x (SPA) — student/faculty-facing training UI
 - **Backend API:** .NET 8 Web API — business logic, simulation engine, assessment scoring, analytics aggregation
-- **Phishing Engine:** GoPhish (latest, official Docker Hub image)
+- **Phishing Engine:** GoPhish (latest, official Docker Hub image) — Azure MySQL (AKS) / DDEV MariaDB (local dev)
 - **Database:** Azure SQL Server `drupalpoc-sql` (centralus, Basic DTU 5) + Azure MySQL `drupalpoc-mysql` (centralus, Burstable B1ms)
 - **Container Orchestration:** Azure Kubernetes Service `drupalpoc-aks` (eastus2, Free tier, Standard_B2s, K8s v1.33.6)
 - **Container Registry:** GitHub Container Registry (GHCR)
@@ -78,7 +78,7 @@ The developer has established enterprise patterns for the following components, 
 | **Day 2** | ✅ Complete | Dockerfiles for all 4 services + 3 images built & pushed to GHCR (`drupalpoc-gophish`, `drupalpoc-drupal`, `drupalpoc-drupal-nginx`) |
 | **Day 3** | ✅ Complete | .NET API scaffolded + tested + pushed to GHCR. K8s manifests created (8 files). Deployed to AKS — all 4 pods running, ingress at `20.85.112.48`. |
 | **Day 4** | ✅ Complete | Drupal AKS MySQL site:install + setup scripts, Angular 21 scaffold (Material + Chart.js), Webform REST investigation + module install, Drupal JSON:API integration (Pluralsight-style module viewer), .NET API quiz scoring integration, GoPhish campaign seeding + Angular integration, Dashboard (4 KPI cards + 2 Chart.js charts), Docker build + GHCR push + AKS deploy (all 5 images live) |
-| **Day 5** | ✅ Complete | DDEV Mutagen sync troubleshooting + self-healing in start-dev.ps1, stop-dev.ps1 shutdown script, deploy-aks.ps1 AKS deployment pipeline, GoPhish local setup (Mailpit SMTP), nginx CSS aggregation fix (try_files), mailpit_link custom module (environment-aware), Architecture Semantic Enrichment |
+| **Day 5** | ✅ Complete | DDEV Mutagen sync troubleshooting + self-healing in start-dev.ps1, stop-dev.ps1 shutdown script, deploy-aks.ps1 AKS deployment pipeline, GoPhish local setup (Mailpit SMTP), nginx CSS aggregation fix (try_files), mailpit_link custom module (environment-aware), Architecture Semantic Enrichment, GoPhish SQLite → Azure MySQL migration, DDEV GoPhish sidecar, seed scripts (production → local pipeline) |
 
 See **[📋 Planning](Planning)** for detailed task tracking.
 
@@ -117,6 +117,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1
 | `http://localhost:4200` | Angular SPA (dashboard, modules, quiz, results) |
 | `http://localhost:5000/health` | .NET API health check |
 | `http://drupalpoc.ddev.site` | Drupal admin UI |
+| `https://localhost:3333` | GoPhish admin UI |
+| `http://localhost:8888` | GoPhish phishing listener |
 | `http://drupalpoc.ddev.site:8025` | Mailpit Web UI (captured GoPhish emails) |
 
 The script verifies Docker health, starts DDEV (with Mutagen self-healing for Windows symlink conflicts), launches the .NET API with `ASPNETCORE_ENVIRONMENT=Development`, checks npm dependencies, and starts the Angular dev server — with logs written to `scripts/logs/`.

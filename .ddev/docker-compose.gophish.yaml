@@ -1,0 +1,15 @@
+services:
+  gophish:
+    container_name: ddev-${DDEV_SITENAME}-gophish
+    image: gophish/gophish:latest
+    restart: "no"
+    labels:
+      com.ddev.site-name: ${DDEV_SITENAME}
+      com.ddev.approot: $DDEV_APPROOT
+    volumes:
+      - "../docker/gophish/config.local.json:/opt/gophish/config.json"
+    ports:
+      - "3333:3333"
+      - "8888:8080"
+    depends_on:
+      - db

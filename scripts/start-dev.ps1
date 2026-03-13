@@ -3,8 +3,9 @@
 # =============================================================================
 # Boots every service needed for local development in the correct order:
 #   1. DDEV            (Drupal, MySQL, azure-cli sidecar) + Mutagen health check
-#   2. .NET 8 API      (port 5000 -- quiz scores, GoPhish proxy)
-#   3. Angular 21 SPA  (port 4200 -- dev server inside DDEV container)
+#   2. GoPhish         (port 3333 -- admin, port 8888 -- phishing listener)
+#   3. .NET 8 API      (port 5000 -- quiz scores, GoPhish proxy)
+#   4. Angular 21 SPA  (port 4200 -- dev server inside DDEV container)
 #
 # Usage:  powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1
 # Stop:   Ctrl-C in the Angular window, then `ddev stop`
@@ -77,7 +78,7 @@ if (-not $dockerOk) {
 }
 Write-Ok "Docker is responsive."
 
-$steps = 5
+$steps = 6
 
 # == 1. DDEV ================================================================
 Write-Step 1 $steps "Ensuring DDEV is running (with Mutagen health check)..."
@@ -163,8 +164,24 @@ if ($webHealthy) {
     }
 }
 
-# == 2. .NET API =============================================================
-Write-Step 2 $steps "Starting .NET API on port 5000..."
+# == 2. GoPhish ==============================================================
+Write-Step 2 $steps "Verifying GoPhish is healthy on port 3333..."
+
+$gophishAlive = $false
+for ($i = 0; $i -lt 15; $i++) {
+    if (Test-Port 'localhost' 3333) {
+        $gophishAlive = $true; break
+    }
+    Start-Sleep -Seconds 2
+}
+if ($gophishAlive) {
+    Write-Ok "GoPhish admin is responsive."
+} else {
+    Write-Warn "GoPhish is not responding on port 3333. Check: ddev logs -s gophish"
+}
+
+# == 3. .NET API =============================================================
+Write-Step 3 $steps "Starting .NET API on port 5000..."
 Write-Log "Log file: $ApiLog"
 
 $apiAlive = $false
@@ -216,8 +233,8 @@ if ($apiAlive) {
     }
 }
 
-# == 3. npm install ==========================================================
-Write-Step 3 $steps "Checking Angular dependencies..."
+# == 4. npm install ==========================================================
+Write-Step 4 $steps "Checking Angular dependencies..."
 # $WebContainer already set in Step 1
 $nmCheck = docker exec $WebContainer test -d /var/www/html/src/angular/node_modules 2>$null
 if ($LASTEXITCODE -eq 0) {
@@ -227,8 +244,8 @@ if ($LASTEXITCODE -eq 0) {
     docker exec $WebContainer bash -c 'cd /var/www/html/src/angular && npm install'
 }
 
-# == 4. Angular dev server ===================================================
-Write-Step 4 $steps "Starting Angular dev server on port 4200..."
+# == 5. Angular dev server ===================================================
+Write-Step 5 $steps "Starting Angular dev server on port 4200..."
 Write-Log "Log file: $NgLog"
 
 # Check if ng serve is actually running inside the container (not just port open --
@@ -289,8 +306,8 @@ if ($ngAlive) {
     }
 }
 
-# == 5. Summary ==============================================================
-Write-Step 5 $steps "Done."
+# == 6. Summary ==============================================================
+Write-Step 6 $steps "Done."
 Pop-Location
 
 Write-Host ""
@@ -299,8 +316,12 @@ Write-Host "  Modules    http://localhost:4200/modules"    -ForegroundColor Whit
 Write-Host "  Quiz       http://localhost:4200/quiz"       -ForegroundColor White
 Write-Host "  Results    http://localhost:4200/results"    -ForegroundColor White
 Write-Host "  API Health http://localhost:5000/health"     -ForegroundColor White
-Write-Host "  Drupal     http://drupalpoc.ddev.site"       -ForegroundColor White
+Write-Host "  GoPhish    https://localhost:3333"             -ForegroundColor White
+Write-Host "  Phishing   http://localhost:8888"              -ForegroundColor White
+Write-Host "  Mailpit    https://drupalpoc.ddev.site:8026"   -ForegroundColor White
+Write-Host "  Drupal     http://drupalpoc.ddev.site"         -ForegroundColor White
 Write-Host ""
+Write-Host "  Seed GoPhish: powershell -File scripts/seed_gophish_local.ps1" -ForegroundColor DarkGray
 
 if (-not $NoBrowser) {
     Start-Process 'http://localhost:4200'
