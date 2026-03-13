@@ -66,3 +66,4 @@ Thumbs.db
 
 # .NET Development Settings (contains credentials)
 **/appsettings.Development.json
+scripts/GOPHISH_MYSQL_UPGRADE.md

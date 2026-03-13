@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using DrupalPOC.Api.Data;
 using DrupalPOC.Api.Models;
+using System.IO;
+using System.Runtime.CompilerServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +57,57 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ---------------------------------------------------------------------------
+// GoPhish Dev-Only File Logger
+// ---------------------------------------------------------------------------
+// Logs full request/response details + stack traces to scripts/logs/gophish.log.
+// Only active in Development — no-op in production. The log file is covered by
+// the scripts/logs/*.log rule in .gitignore.
+
+string? gpLogPath = null;
+if (app.Environment.IsDevelopment())
+{
+    // Walk up from bin/Debug/net8.0 → project root → repo root → scripts/logs/
+    var repoRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+    var logDir = Path.Combine(repoRoot, "scripts", "logs");
+    Directory.CreateDirectory(logDir);
+    gpLogPath = Path.Combine(logDir, "gophish.log");
+    File.AppendAllText(gpLogPath, $"\n--- GoPhish log started {DateTime.UtcNow:O} ---\n");
+}
+
+void LogGoPhish(string method, string path, string baseUrl, string apiKey,
+    int? statusCode = null, string? responseBody = null, Exception? ex = null)
+{
+    if (gpLogPath is null) return;
+    try
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss.fff UTC}] {method} {path}");
+        sb.AppendLine($"  BaseUrl : {baseUrl}");
+        sb.AppendLine($"  ApiKey  : {apiKey}");
+        if (statusCode.HasValue)
+            sb.AppendLine($"  Status  : {statusCode.Value}");
+        if (responseBody is not null)
+            sb.AppendLine($"  Body    : {responseBody}");
+        if (ex is not null)
+        {
+            sb.AppendLine($"  EXCEPTION: {ex.GetType().FullName}: {ex.Message}");
+            sb.AppendLine(ex.StackTrace);
+            // Include inner exceptions
+            var inner = ex.InnerException;
+            while (inner is not null)
+            {
+                sb.AppendLine($"  INNER: {inner.GetType().FullName}: {inner.Message}");
+                sb.AppendLine(inner.StackTrace);
+                inner = inner.InnerException;
+            }
+        }
+        sb.AppendLine();
+        File.AppendAllText(gpLogPath, sb.ToString());
+    }
+    catch { /* Never let logging break the request */ }
+}
+
+// ---------------------------------------------------------------------------
 // Endpoints
 // ---------------------------------------------------------------------------
 
@@ -89,47 +142,61 @@ app.MapGet("/api/scores", async (AppDbContext db) =>
 // ---------------------------------------------------------------------------
 var gpApiKey = app.Configuration["GoPhish:ApiKey"] ?? "";
 
+var gpBaseUrl = app.Configuration["GoPhish:BaseUrl"] ?? "https://gophish-service.drupalpoc:3333";
+
 app.MapGet("/api/campaigns", async (IHttpClientFactory httpClientFactory) =>
 {
+    var requestPath = $"/api/campaigns/?api_key={gpApiKey}";
     try
     {
         var client = httpClientFactory.CreateClient("gophish");
-        var response = await client.GetAsync($"/api/campaigns/?api_key={gpApiKey}");
+        var response = await client.GetAsync(requestPath);
         var json = await response.Content.ReadAsStringAsync();
+        LogGoPhish("GET", requestPath, gpBaseUrl, gpApiKey,
+            statusCode: (int)response.StatusCode, responseBody: json);
         return Results.Content(json, "application/json", statusCode: (int)response.StatusCode);
     }
-    catch (HttpRequestException ex)
+    catch (Exception ex)
     {
+        LogGoPhish("GET", requestPath, gpBaseUrl, gpApiKey, ex: ex);
         return Results.Json(new { error = "GoPhish unreachable", detail = ex.Message }, statusCode: 502);
     }
 });
 
 app.MapGet("/api/campaigns/{id}", async (int id, IHttpClientFactory httpClientFactory) =>
 {
+    var requestPath = $"/api/campaigns/{id}?api_key={gpApiKey}";
     try
     {
         var client = httpClientFactory.CreateClient("gophish");
-        var response = await client.GetAsync($"/api/campaigns/{id}?api_key={gpApiKey}");
+        var response = await client.GetAsync(requestPath);
         var json = await response.Content.ReadAsStringAsync();
+        LogGoPhish("GET", requestPath, gpBaseUrl, gpApiKey,
+            statusCode: (int)response.StatusCode, responseBody: json);
         return Results.Content(json, "application/json", statusCode: (int)response.StatusCode);
     }
-    catch (HttpRequestException ex)
+    catch (Exception ex)
     {
+        LogGoPhish("GET", requestPath, gpBaseUrl, gpApiKey, ex: ex);
         return Results.Json(new { error = "GoPhish unreachable", detail = ex.Message }, statusCode: 502);
     }
 });
 
 app.MapGet("/api/campaigns/{id}/results", async (int id, IHttpClientFactory httpClientFactory) =>
 {
+    var requestPath = $"/api/campaigns/{id}/results?api_key={gpApiKey}";
     try
     {
         var client = httpClientFactory.CreateClient("gophish");
-        var response = await client.GetAsync($"/api/campaigns/{id}/results?api_key={gpApiKey}");
+        var response = await client.GetAsync(requestPath);
         var json = await response.Content.ReadAsStringAsync();
+        LogGoPhish("GET", requestPath, gpBaseUrl, gpApiKey,
+            statusCode: (int)response.StatusCode, responseBody: json);
         return Results.Content(json, "application/json", statusCode: (int)response.StatusCode);
     }
-    catch (HttpRequestException ex)
+    catch (Exception ex)
     {
+        LogGoPhish("GET", requestPath, gpBaseUrl, gpApiKey, ex: ex);
         return Results.Json(new { error = "GoPhish unreachable", detail = ex.Message }, statusCode: 502);
     }
 });
