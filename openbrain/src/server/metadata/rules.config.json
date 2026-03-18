@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.1",
+  "concept_patterns": {
+    "AKS": ["aks", "kubernetes", "k8s", "kubectl", "helm", "cluster", "node pool"],
+    "Azure_SQL": ["azure sql", "sql server", "dtu", "vcore", "database server"],
+    "GoPhish": ["gophish", "phishing simulation", "phishing campaign", "phishing test"],
+    "Angular": ["angular", "ng serve", "angular material", "component", "ng build"],
+    "DotNet8": [".net 8", "dotnet", "web api", "ef core", "entity framework", "c#", "csharp"],
+    "Docker": ["docker", "container", "dockerfile", "docker-compose", "image"],
+    "Entra_ID": ["entra", "azure ad", "active directory", "msal", "oauth", "authentication"],
+    "Key_Vault": ["key vault", "keyvault", "secret", "certificate"],
+    "MCP": ["mcp", "model context protocol", "mcp server", "mcp client"],
+    "Open_Brain": ["open brain", "openbrain", "open-brain", "brain", "memory layer"]
+  },
+  "responds_to_patterns": {
+    "Implementation_How-To": ["how do i", "how to", "steps to", "set up", "configure", "install", "deploy", "create"],
+    "Debugging_Troubleshooting": ["error", "failed", "crash", "not working", "fix", "bug", "issue", "broken", "exception"],
+    "Architectural_Decision": ["why did", "why not", "decision", "chose", "trade-off", "decided", "selected", "picked", "went with"],
+    "Definition_Explanation": ["what is", "what are", "explain", "define", "meaning of", "difference between"],
+    "Status_Update": ["completed", "finished", "done", "progress", "update", "status", "milestone"]
+  },
+  "difficulty_patterns": {
+    "Beginner": ["basic", "simple", "getting started", "hello world", "first time", "beginner"],
+    "Intermediate": [],
+    "Advanced": ["complex", "advanced", "optimization", "performance", "scaling", "distributed", "architecture"]
+  },
+  "difficulty_default": "Intermediate",
+  "untagged_threshold": 0
+}

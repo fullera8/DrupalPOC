@@ -1,0 +1,26 @@
+{
+  "inputs": [
+    {
+      "id": "openbrain-token",
+      "type": "promptString",
+      "description": "Enter your bearer token for the Open Brain MCP server",
+      "password": true
+    }
+  ],
+  "servers": {
+    "openbrain-local": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:openbrain-token}"
+      }
+    },
+    "openbrain-remote": {
+      "type": "http",
+      "url": "https://openbrain-aca.<region>.azurecontainerapps.io/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:openbrain-token}"
+      }
+    }
+  }
+}

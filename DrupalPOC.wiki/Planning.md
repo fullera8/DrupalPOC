@@ -157,5 +157,12 @@ These items are **intentionally deferred** from the POC. They represent the "sca
 - [ ] Separate Angular services — POC uses a single `DrupalService` for all Drupal API calls (JSON:API + webform_rest). Post-POC: split into `TrainingModuleService`, `QuizService`, etc. based on client-specific requirements after bid is won.
 - [ ] SMTP integration for phishing campaigns — POC uses Mailhog (DDEV-only) for email capture. Production requires a real SMTP relay (e.g., Azure Communication Services, SendGrid, or institutional SMTP) so GoPhish can deliver simulated phishing emails to actual user inboxes.
 - [ ] Environment strategy (Dev / Staging / Production) — Define three deployment tiers with environment-specific configuration. **Dev:** DDEV-based local stack with all services (Drupal, .NET API, Angular, GoPhish) running in containers; uses Mailpit for email capture, MariaDB for Drupal, and a shared MariaDB database for GoPhish (replacing default SQLite). **Staging:** AKS cluster mirroring production topology but on Free/Dev-tier resources; used for integration testing and demo walkthroughs. **Production:** AKS with HPA, TLS ingress, Azure AD SSO, real SMTP relay (Azure Communication Services or institutional), and production-grade database tiers. Environment-specific config managed via `appsettings.{Environment}.json` (.NET), DDEV config overrides (Drupal), and Kubernetes ConfigMaps/Secrets (AKS).
+- [ ] Finalize `conversations` table schema before Phase 2 conversation capture
+  - Add `message_text NVARCHAR(MAX)` column
+  - Confirm direction enum: 'user'/'assistant' vs 'inbound'/'outbound'
+  - Add columns for conversation threading if needed
+- [ ] Migrate Container App secrets from direct env vars to Key Vault references
+  - Requires system-assigned identity RBAC to be established first
+  - See chicken-and-egg note in Architecture.md / resources.bicep
 
 **[LLM_CONTEXT: This is the POC task tracker. Check boxes (- [x]) indicate completed items. The developer updates these as work progresses. Day 1 is the highest-risk day (Azure provisioning). If blocked, the fallback is DDEV local development. Post-POC backlog items should NOT be pulled into the POC timeline. The risk register identifies the most likely blockers and their mitigations.]**

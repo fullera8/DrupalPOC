@@ -1,0 +1,13 @@
+# azd deployment configuration for Open Brain MCP server
+# Deploys to Azure Container Apps (scale-to-zero)
+name: openbrain
+metadata:
+  template: openbrain-mcp@0.1.0
+services:
+  openbrain-mcp:
+    project: ./openbrain
+    language: ts
+    host: containerapp
+    docker:
+      path: ./Dockerfile
+      context: .

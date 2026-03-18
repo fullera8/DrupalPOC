@@ -3261,3 +3261,721 @@ Ran `deploy-aks.ps1 -SkipBuild -SkipPush` to validate:
 **Sync Query Issue:** The mysql client in the alpine-based azure-cli sidecar could not connect to Azure MySQL within the retry window. This is a known limitation — Azure MySQL Flexible Server requires specific TLS settings. The sync degrades gracefully (warns and skips). The key was already correct from the manual patch, so no drift existed. Future investigation: try `--ssl-mode=REQUIRED` or use `kubectl exec` into the GoPhish pod (which already has a working MySQL connection) to query the key instead.
 
 **[LLM_CONTEXT: `deploy-aks.ps1` now has a GoPhish API Key Sync section in Step 5 (post-deploy). It queries Azure MySQL for the GoPhish admin API key and syncs to K8s secrets + local files if different. The sync currently fails due to mysql client TLS issues in the azure-cli sidecar — future fix: query via the GoPhish pod instead. The `/api/campaigns` endpoint is now included in Step 6 health checks. PS 5.1 CANNOT read UTF-8 files with non-ASCII characters correctly — always use ASCII-only in .ps1 files (no em dashes, arrows, or other Unicode). The 401 fix was a manual K8s secret patch; the sync mechanism is the automated prevention.]**
+
+---
+
+## Open Brain MCP Server -- Steps 1-5 (Mar 2026)
+**[SECTION_METADATA: CONCEPTS=MCP,TypeScript,Azure_SQL,Azure_OpenAI,Vector_Embeddings,Bicep,DDEV,Infrastructure_as_Code | DIFFICULTY=Advanced | TOOLS=Node.js,TypeScript,tedious,openai,Bicep,DDEV,Azure_CLI | RESPONDS_TO: Implementation_How-To, Architectural_Decision]**
+
+### Project Overview
+
+**Open Brain** is a greenfield LLM-agnostic knowledge layer built as an MCP (Model Context Protocol) server. It gives any LLM persistent memory -- the ability to remember, recall, search, and forget information across conversations.
+
+**Core Architecture:**
+- **Runtime:** TypeScript/Node.js MCP server using `@modelcontextprotocol/sdk`, Express HTTP/SSE, port 3000
+- **Storage:** Azure SQL Database with native `VECTOR(1536)` support (GA on all tiers including DTU Basic)
+- **Embeddings:** Azure OpenAI `text-embedding-3-small` (1536 dimensions) via existing resource `ps-azopenai-eastus-afuller2` in East US 2
+- **Hosting:** Azure Container Apps with scale-to-zero (min 0, max 3), managed identity
+- **Isolation:** Per-brain SQL schema pattern (`brain_default`, `brain_<name>`) for complete data isolation
+- **Similarity Search:** `VECTOR_DISTANCE` cosine similarity for k-NN retrieval (no DiskANN index needed at <10K memory scale)
+
+**Design Principle:** The user acts as engineering manager, providing one implementation step at a time. All compilation is verified inside DDEV containers -- no local machine dependencies.
+
+### Step 1 -- Project Scaffold
+**[DIFFICULTY: Beginner | CONCEPTS: Node.js,TypeScript,npm,Project_Structure]**
+
+Scaffolded `openbrain/` directory inside the DrupalPOC repo with 17 files:
+
+```
+openbrain/
+  package.json          # Dependencies: @modelcontextprotocol/sdk, express, tedious, openai, zod, dotenv, uuid
+  tsconfig.json         # ES2022, NodeNext modules, strict mode
+  .env.example          # Template for all required environment variables
+  sql/
+    init-schema.sql     # Placeholder (implemented in Step 3)
+  infra/
+    main.bicep          # Placeholder (implemented in Step 2)
+    resources.bicep     # Placeholder (implemented in Step 2)
+  src/server/
+    index.ts            # MCP server entry point (placeholder)
+    services/
+      database.ts       # Placeholder (implemented in Step 5)
+      embedding.ts      # Placeholder (implemented in Step 4)
+    tools/
+      remember.ts       # MCP tool stub
+      recall.ts         # MCP tool stub
+      search.ts         # MCP tool stub
+      forget.ts         # MCP tool stub
+    metadata/
+      extractor.ts      # Metadata extraction engine (placeholder)
+      rules.config.json # Empty rules array
+```
+
+Ran `npm install` inside DDEV web container -- 224 packages, 0 vulnerabilities.
+
+### Step 2 -- Bicep Infrastructure
+**[DIFFICULTY: Intermediate | CONCEPTS: Bicep,Azure_Container_Apps,Azure_SQL,Key_Vault,Managed_Identity,RBAC,Subscription_Scoped_Deployment]**
+
+Implemented two-file Bicep deployment:
+
+**`main.bicep` (subscription-scoped orchestrator):**
+- `targetScope = 'subscription'`
+- Creates `rg-openbrain` resource group
+- Passes all parameters down to the `resources.bicep` module
+- Parameters: `location` (eastus2), `sqlAdminLogin`, `sqlAdminPassword` (@secure), `aoaiEndpoint`, `aoaiApiKey` (@secure), `allowedIpAddress`
+
+**`resources.bicep` (resource-group-scoped module):**
+- Azure SQL Server (`openbrain-sql`) + Database (`openbrain-db`, Basic DTU 5, 2GB max)
+- SQL firewall rules (Azure services + developer IP)
+- Key Vault (`kv-openbrain-<uniqueString>`) with 3 secrets: SQL connection string, Azure OpenAI endpoint, Azure OpenAI API key
+- Log Analytics workspace
+- Azure Container Apps environment + Container App (`openbrain-aca`) with managed identity
+- RBAC role assignment: Key Vault Secrets User for the container app's managed identity
+
+**DDEV Path Discovery:** The azure-cli sidecar mounts the project at `/mnt/project` (not `/var/www/html`). Verified via `ddev exec -s azure-cli ls /mnt/project/openbrain/infra/`.
+
+**Compilation Command:**
+```bash
+ddev exec -s azure-cli az bicep build --file /mnt/project/openbrain/infra/main.bicep
+```
+
+Compiled successfully -- both `.json` ARM template files generated.
+
+### Step 3 -- SQL Schema (`init-schema.sql`)
+**[DIFFICULTY: Advanced | CONCEPTS: Azure_SQL,VECTOR_1536,Stored_Procedures,Dynamic_SQL,Idempotent_DDL,Schema_Isolation]**
+
+Replaced placeholder with a complete 233-line idempotent SQL schema:
+
+**Schema: `brain_default`** (created via `CREATE SCHEMA IF NOT EXISTS`):
+
+| Table | Key Columns | Purpose |
+|:--|:--|:--|
+| `memories` | `id` (uniqueidentifier PK), `content` (nvarchar(max)), `embedding` (VECTOR(1536)), `source_type`, `is_active`, `created_by` | Core memory storage with vector embeddings |
+| `metadata` | `memory_id` (FK), `tag_type`, `tag_value`, `confidence`, `source` | Flexible key-value tagging system |
+| `conversations` | `memory_id` (FK), `session_id`, `direction` (inbound/outbound), `message_text` | Conversation context for memories |
+
+**4 Nonclustered Indexes:** `IX_memories_active_created` (filtered on is_active=1), `IX_metadata_memory`, `IX_metadata_type_value`, `IX_conversations_session`.
+
+**Stored Procedure: `brain_default.create_new_brain(@brain_name)`:**
+- Input validation: rejects NULL/empty, max 128 chars, regex `^[a-zA-Z0-9_]+$` (no special characters)
+- Prefixes with `brain_` automatically
+- Uses `QUOTENAME()` for safe identifier quoting in dynamic SQL
+- Clones all 3 tables + indexes into the new schema via `sp_executesql`
+- Fully idempotent -- skips if schema already exists
+
+**Key Design Note:** `VECTOR(1536)` is GA on Azure SQL (all tiers including DTU Basic 5). No preview flags or special configuration needed. `VECTOR_DISTANCE` with cosine similarity is used for k-NN search -- DiskANN indexes are unnecessary at the expected scale (<10K memories per brain).
+
+### Step 4 -- Embedding Service (`embedding.ts`)
+**[DIFFICULTY: Intermediate | CONCEPTS: Azure_OpenAI,text-embedding-3-small,Vector_Embeddings,Lazy_Singleton]**
+
+Replaced placeholder with ~130 lines implementing the Azure OpenAI embedding wrapper:
+
+**Exports:**
+- `generateEmbedding(text: string): Promise<number[]>` -- single text to 1536-dimensional vector
+- `generateEmbeddings(texts: string[]): Promise<number[][]>` -- batch API call, sorts response by index to preserve input order
+
+**Architecture:**
+- Uses `AzureOpenAI` class from `openai` package (not the older `@azure/openai`)
+- Lazy singleton client pattern -- instantiated on first call, reused thereafter
+- API version: `2024-10-21`
+- Preprocesses input: strips newlines, trims whitespace
+- Descriptive error wrapping with context
+
+**Configuration (env vars):**
+- `AZURE_OPENAI_ENDPOINT` (required)
+- `AZURE_OPENAI_API_KEY` (required)
+- `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` (default: `text-embedding-3-small`)
+- `EMBEDDING_DIMENSIONS` (default: `1536`)
+
+**Compilation:**
+```bash
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --pretty"
+```
+Compiled cleanly with zero errors.
+
+### Step 5 -- Database Service (`database.ts`)
+**[DIFFICULTY: Advanced | CONCEPTS: tedious,Azure_SQL,Parameterized_Queries,VECTOR_DISTANCE,Connection_Per_Request,Schema_Validation]**
+
+Replaced placeholder with ~400 lines implementing all database CRUD and search operations:
+
+**6 Exported Functions:**
+
+| Function | Purpose | Key SQL |
+|:--|:--|:--|
+| `storeMemory(schema, content, embedding, sourceType, createdBy)` | INSERT memory + return ID | `OUTPUT INSERTED.id`, embedding via `CAST(? AS VECTOR(1536))` |
+| `storeMetadata(schema, memoryId, tags[])` | Bulk INSERT tags | Multi-value INSERT with parameterized `(@type_N, @value_N, ...)` |
+| `searchByVector(schema, embedding, topK, threshold?, filters?)` | Cosine similarity search | `VECTOR_DISTANCE('cosine', ...)` with optional metadata `EXISTS` subquery |
+| `searchByKeyword(schema, keyword, topK)` | LIKE-based text search | `WHERE content LIKE '%' + @keyword + '%'` (parameterized) |
+| `softDeleteMemory(schema, memoryId)` | Soft delete | `SET is_active = 0, updated_at = GETUTCDATE()` |
+| `getUntaggedMemories(schema, limit)` | Find memories needing tagging | `LEFT JOIN metadata` + filter for `METADATA_STATUS = 'untagged'` tag |
+
+**Types:**
+- `MemoryResult`: memoryId, content, similarity, tags[], createdBy, createdAt, sourceType
+- `MemoryTag`: tagType, tagValue, confidence, source
+
+**Security -- Schema Name Validation:**
+All schema names validated with client-side regex `^[a-zA-Z0-9_]+$` then bracket-quoted as `[schema]` in SQL. This was a deliberate architectural choice over using SQL Server's `QUOTENAME()` function (which is a T-SQL server-side function). The client-side regex is actually *more restrictive* than `QUOTENAME()` -- it rejects dangerous input outright rather than attempting to escape it. This matches the same validation used in the `create_new_brain` stored procedure.
+
+**Architecture -- Connection Per Request:**
+Uses a `withConnection` helper that creates a new `tedious.Connection` for each operation and ensures cleanup. Two-phase queries for search operations: fetch memories first, then fetch metadata for matched IDs, all on the same connection.
+
+**Vector Embedding Handling:**
+Embeddings are passed as NVarChar JSON strings (`[0.1, 0.2, ...]`) and then `CAST` to `VECTOR(1536)` in SQL. This is the documented pattern for Azure SQL's native vector type via the tedious driver.
+
+### Compilation Verification
+
+All 8 source files under `src/server/` compile cleanly via the DDEV web container:
+
+```bash
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --listFiles" \
+  | grep '/var/www/html/openbrain/src/server'
+```
+
+**Result:**
+```
+/var/www/html/openbrain/src/server/index.ts
+/var/www/html/openbrain/src/server/metadata/extractor.ts
+/var/www/html/openbrain/src/server/services/database.ts
+/var/www/html/openbrain/src/server/services/embedding.ts
+/var/www/html/openbrain/src/server/tools/forget.ts
+/var/www/html/openbrain/src/server/tools/recall.ts
+/var/www/html/openbrain/src/server/tools/remember.ts
+/var/www/html/openbrain/src/server/tools/search.ts
+```
+
+All files included in compilation, zero errors.
+
+### Key DDEV Commands Established
+
+| Purpose | Command |
+|:--|:--|
+| TypeScript compilation | `ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --pretty"` |
+| Bicep compilation | `ddev exec -s azure-cli az bicep build --file /mnt/project/openbrain/infra/main.bicep` |
+| Per-file verification | `ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --listFiles" \| grep '<pattern>'` |
+| Node/npm version check | `ddev exec node --version` / `ddev exec npm --version` (v24.13.0 / 11.6.2) |
+
+### Remaining Work (after Step 5)
+
+The following files are still placeholders (comment headers only, no logic):
+- `src/server/index.ts` -- MCP server entry point
+- `src/server/tools/remember.ts`, `recall.ts`, `search.ts`, `forget.ts` -- MCP tool implementations
+- `src/server/metadata/extractor.ts` -- automatic metadata extraction engine
+- `src/server/metadata/rules.config.json` -- extraction rules configuration
+- Infrastructure deployment (Bicep templates written but not deployed to Azure)
+
+**[LLM_CONTEXT: Open Brain is a greenfield MCP server in `openbrain/` within the DrupalPOC repo. Steps 1-5 are complete: project scaffold, Bicep infra (subscription-scoped main.bicep + resources.bicep module), SQL schema (VECTOR(1536) GA, create_new_brain stored proc), embedding service (AzureOpenAI lazy singleton), database service (6 functions, tedious, parameterized queries, client-side schema validation). All compilation verified via DDEV web container (Node v24.13.0). The DDEV azure-cli sidecar mounts at `/mnt/project` (not `/var/www/html`). Schema names use client-side regex allowlist `^[a-zA-Z0-9_]+$` + bracket quoting -- deliberately chosen over SQL QUOTENAME(). Vector embeddings passed as NVarChar JSON strings then CAST to VECTOR(1536) in SQL.]**
+
+---
+
+### Step 6 -- Rule-Based Metadata Extraction Engine (Mar 2026)
+**[DIFFICULTY: Intermediate | CONCEPTS: Metadata_Extraction,Rule_Engine,Pattern_Matching,Deterministic_Tagging,Wiki_Metadata_Schema]**
+
+#### Architectural Decision: No LLM in Tagging
+
+The metadata extractor uses **only deterministic, rule-based pattern matching**. No LLM is involved in tagging. This is a deliberate architectural decision to prevent hallucinated metadata from poisoning the knowledge base. If no patterns match, the memory receives a `METADATA_STATUS: untagged` tag -- that is the correct behavior, not a failure.
+
+The tag vocabulary aligns with the project's existing wiki metadata schema (see `DrupalPOC.wiki/Metadata-Legend.md` v1.1): `CONCEPT`, `RESPONDS_TO`, `DIFFICULTY`, and `METADATA_STATUS` tag types mirror the section-level metadata tags used throughout the wiki.
+
+#### `rules.config.json` -- Pattern Configuration
+
+Replaced the empty placeholder with a full pattern configuration:
+
+```json
+{
+  "schema_version": "1.1",
+  "concept_patterns": { ... },    // 10 concepts, 7-10 keywords each
+  "responds_to_patterns": { ... }, // 5 query types
+  "difficulty_patterns": { ... },  // 3 tiers (Beginner, Intermediate, Advanced)
+  "difficulty_default": "Intermediate",
+  "untagged_threshold": 0
+}
+```
+
+**Concept Patterns (10):**
+
+| Tag Value | Sample Keywords |
+|:--|:--|
+| `AKS` | aks, kubernetes, k8s, kubectl, helm, cluster, node pool |
+| `Azure_SQL` | azure sql, sql server, dtu, vcore, database server |
+| `GoPhish` | gophish, phishing simulation, phishing campaign, phishing test |
+| `Angular` | angular, ng serve, angular material, component, ng build |
+| `DotNet8` | .net 8, dotnet, web api, ef core, entity framework, c#, csharp |
+| `Docker` | docker, container, dockerfile, docker-compose, image |
+| `Entra_ID` | entra, azure ad, active directory, msal, oauth, authentication |
+| `Key_Vault` | key vault, keyvault, secret, certificate |
+| `MCP` | mcp, model context protocol, mcp server, mcp client |
+| `Open_Brain` | open brain, openbrain, open-brain, brain, memory layer |
+
+**Responds-To Patterns (5):** `Implementation_How-To`, `Debugging_Troubleshooting`, `Architectural_Decision`, `Definition_Explanation`, `Status_Update` -- each with 6-8 trigger keywords.
+
+**Difficulty Patterns:** Beginner (6 keywords), Intermediate (empty -- used as default), Advanced (6 keywords). Default: `Intermediate`.
+
+**Untagged Threshold:** `0` -- memories with zero concept matches get `METADATA_STATUS: untagged`.
+
+#### `extractor.ts` -- Extraction Engine
+
+Replaced the placeholder with ~160 lines implementing two exported functions and three exported interfaces:
+
+**Interfaces:**
+
+| Interface | Shape | Purpose |
+|:--|:--|:--|
+| `PatternMap` | `{ [tagValue: string]: string[] }` | Maps tag values to keyword arrays |
+| `RulesConfig` | `{ schema_version, concept_patterns, responds_to_patterns, difficulty_patterns, difficulty_default, untagged_threshold }` | Typed representation of `rules.config.json` |
+| `MetadataTag` | `{ tagType, tagValue, confidence, source }` | Output tag -- matches `MemoryTag` in `database.ts` |
+
+**`MetadataTag` deliberately matches `MemoryTag`** from `database.ts` (`{ tagType, tagValue, confidence, source }`) so tags flow directly into `storeMetadata()` without transformation.
+
+**Exported Functions:**
+
+| Function | Purpose |
+|:--|:--|
+| `loadRulesConfig(configPath)` | Reads JSON file via `node:fs`, parses, validates `schema_version` against an allowlist (`["1.1"]`), returns typed `RulesConfig` |
+| `extractMetadata(content, config)` | Pure deterministic extraction -- returns `MetadataTag[]` |
+
+**Extraction Logic (5 phases):**
+
+1. **Lowercase** -- convert content once for case-insensitive matching
+2. **Concept scan** -- match `concept_patterns` → emit `CONCEPT` tags (confidence: 1.0, source: `rule_engine`)
+3. **Responds-to scan** -- match `responds_to_patterns` → emit `RESPONDS_TO` tags
+4. **Difficulty scan** -- match `difficulty_patterns` → emit `DIFFICULTY` tags. If no patterns match, apply `difficulty_default` value
+5. **Untagged check** -- if concept tag count ≤ `untagged_threshold`, emit `{ tagType: 'METADATA_STATUS', tagValue: 'untagged' }`
+
+**Internal helper:** `matchPatterns(content, patterns, tagType)` -- shared by all three scan phases. Iterates over a `PatternMap`, skips entries with empty keyword arrays, uses `string.includes()` for matching (acceptable for POC per spec).
+
+**Key Design Properties:**
+- **Pure function** -- `extractMetadata` has no side effects, no I/O. Config loading is separate.
+- **No LLM inference** -- tags are emitted ONLY when a literal keyword from the config is found in the content.
+- **Extensible** -- new concepts or keywords are added to `rules.config.json` without code changes.
+- **All tags have `confidence: 1.0`** -- rule-based matches are deterministic, not probabilistic.
+
+#### Compilation Verification
+
+```bash
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --pretty"
+# Zero errors
+
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --listFiles 2>&1 | grep 'extractor'"
+# /var/www/html/openbrain/src/server/metadata/extractor.ts
+```
+
+#### Remaining Work (after Step 6)
+
+The following files are still placeholders:
+- `src/server/index.ts` -- MCP server entry point
+- `src/server/tools/remember.ts`, `recall.ts`, `search.ts`, `forget.ts` -- MCP tool implementations
+- Infrastructure deployment (Bicep templates written but not deployed to Azure)
+
+**[LLM_CONTEXT: Step 6 adds the rule-based metadata extractor (`extractor.ts` + `rules.config.json`) to the Open Brain MCP server. The extractor is DETERMINISTIC ONLY -- no LLM, no inference. Tags come exclusively from keyword matches in rules.config.json. MetadataTag shape matches MemoryTag in database.ts for direct passthrough to storeMetadata(). The tag vocabulary (CONCEPT, RESPONDS_TO, DIFFICULTY, METADATA_STATUS) aligns with the wiki metadata schema v1.1 from Metadata-Legend.md. Config is loaded separately via loadRulesConfig() so the extraction function is pure. Memories with zero concept matches are tagged METADATA_STATUS=untagged. All 10 concept patterns, 5 responds_to patterns, and 3 difficulty tiers are configured. Steps 1-6 are now complete.]**
+
+---
+
+### Step 7 -- Four Core MCP Tools (Mar 2026)
+**[DIFFICULTY: Advanced | CONCEPTS: MCP,Tool_Registration,Vector_Search,Keyword_Search,Soft_Delete,Zod_Schema]**
+
+Implemented the four MCP tools that clients (Copilot, Claude, etc.) call. Each tool file exports a `register(server: McpServer)` function that calls `server.tool(name, description, zodSchema, callback)` -- keeping tools self-contained so `index.ts` simply imports and calls each `register()`.
+
+**Tool return format:** All tools return `{ content: [{ type: "text", text: "..." }] }` per the MCP `CallToolResult` spec.
+
+#### `remember.ts` -- Store a Memory
+
+**Input Schema (Zod):**
+
+| Parameter | Type | Default | Description |
+|:--|:--|:--|:--|
+| `content` | `z.string()` | required | The text to remember (strip "remember that" prefix) |
+| `brain` | `z.string()` | `"brain_default"` | Which brain schema to store in |
+| `sourceType` | `z.enum(["user_command", "conversation", "wiki_import"])` | `"user_command"` | Origin of the memory |
+| `createdBy` | `z.string()` | `"copilot_user"` | Who created the memory |
+
+**Pipeline (5 steps):**
+1. `generateEmbedding(content)` -- get 1536-dim vector from Azure OpenAI
+2. `storeMemory(brain, content, embedding, sourceType, createdBy)` -- INSERT into Azure SQL, get memory ID
+3. `extractMetadata(content, rulesConfig)` -- deterministic rule-based tagging
+4. `storeMetadata(brain, memoryId, tags)` -- bulk INSERT metadata tags
+5. Return confirmation with: memory ID, brain, concept tags, tagged/untagged status, total tag count
+
+**Rules Config Loading:** `loadRulesConfig()` is called lazily (once, then cached) using CJS `__dirname` + `resolve()` to locate `rules.config.json` relative to the compiled tool file.
+
+#### `recall.ts` -- Semantic Vector Search
+
+**Input Schema (Zod):**
+
+| Parameter | Type | Default | Description |
+|:--|:--|:--|:--|
+| `query` | `z.string()` | required | The question or topic to search for |
+| `brain` | `z.string()` | `"brain_default"` | Which brain to search |
+| `topK` | `z.number()` | `5` | Maximum results to return |
+| `metadataFilter` | `z.object({ tagType, tagValue }).optional()` | -- | Optional metadata filter |
+
+**Logic:**
+1. `generateEmbedding(query)` -- embed the query
+2. `searchByVector(brain, queryVector, topK, 0.3, filters)` -- cosine similarity search with threshold 0.3
+3. If empty: return "No relevant memories found in the brain for this query. The brain does not have information about this topic."
+4. If results found: format each with memory ID, similarity score (3 decimal places), content, tags (`tagType:tagValue`), creator, source type, and ISO date
+
+**Similarity Threshold:** Hardcoded at `0.3` (cosine similarity). Memories below this threshold are excluded from results.
+
+#### `search.ts` -- Keyword Search
+
+**Input Schema (Zod):**
+
+| Parameter | Type | Default | Description |
+|:--|:--|:--|:--|
+| `keyword` | `z.string()` | required | The keyword or phrase to search for |
+| `brain` | `z.string()` | `"brain_default"` | Which brain to search |
+| `topK` | `z.number()` | `10` | Maximum results to return |
+
+**Logic:**
+1. `searchByKeyword(brain, keyword, topK)` -- LIKE-based text search
+2. Same output format as recall but without similarity scores (keyword matches don't produce similarity)
+3. Results ordered by recency (most recent first)
+
+**Design Note:** `search` complements `recall` -- use `recall` for meaning-based similarity, `search` for exact string matches.
+
+#### `forget.ts` -- Soft Delete
+
+**Input Schema (Zod):**
+
+| Parameter | Type | Default | Description |
+|:--|:--|:--|:--|
+| `memoryId` | `z.number()` | required | The ID of the memory to soft-delete |
+| `brain` | `z.string()` | `"brain_default"` | Which brain to delete from |
+
+**Logic:**
+1. `softDeleteMemory(brain, memoryId)` -- sets `is_active = 0`
+2. Return confirmation: "Memory #N has been soft-deleted from 'brain'. It will no longer appear in search results."
+
+**Design Note:** Soft delete only. Content and embeddings remain in the database for audit/recovery. The memory is excluded from all future searches via the `is_active = 1` filter in `searchByVector` and `searchByKeyword`.
+
+#### Compilation Fix: `import.meta.url` in CJS
+
+Initial build of `remember.ts` failed:
+
+```
+error TS1470: The 'import.meta' meta-property is not allowed in files
+which will build into CommonJS output.
+```
+
+**Root Cause:** `tsconfig.json` has `module: "NodeNext"` but `package.json` has no `"type": "module"`, so TypeScript infers CJS output. `import.meta.url` is ESM-only.
+
+**Fix:** Replaced `dirname(fileURLToPath(import.meta.url))` with the native CJS `__dirname` global, which is available automatically in CommonJS modules.
+
+#### Compilation Verification
+
+```bash
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --pretty"
+# Zero errors
+
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --listFiles 2>&1 | grep '/var/www/html/openbrain/src/server/tools/'"
+# /var/www/html/openbrain/src/server/tools/forget.ts
+# /var/www/html/openbrain/src/server/tools/recall.ts
+# /var/www/html/openbrain/src/server/tools/remember.ts
+# /var/www/html/openbrain/src/server/tools/search.ts
+```
+
+All 4 tool files compile cleanly via DDEV web container.
+
+#### Remaining Work (after Step 7)
+
+The following file is still a placeholder:
+- `src/server/index.ts` -- MCP server entry point (tool registration + HTTP/SSE transport)
+- Infrastructure deployment (Bicep templates written but not deployed to Azure)
+
+**[LLM_CONTEXT: Step 7 implements all 4 MCP tools (remember, recall, search, forget) in the Open Brain MCP server. Each tool exports a `register(server: McpServer)` function using `server.tool(name, description, zodSchema, callback)`. The remember tool runs the full pipeline: embedding → store → extract metadata → store metadata. Recall uses cosine similarity with threshold 0.3. Search uses LIKE keyword matching. Forget does soft delete (is_active=0). All tools return `{ content: [{ type: "text", text }] }` per CallToolResult spec. The CJS `__dirname` is used (not `import.meta.url`) because package.json lacks `"type": "module"`. The only remaining placeholder is index.ts (MCP server entry point). Steps 1-7 are now complete.]**
+
+### Step 8 — MCP Server Entry Point (`index.ts`) (Mar 2026)
+**[DIFFICULTY: Advanced] [CONCEPTS: MCP, Express, Streamable_HTTP, Session_Management, CORS, Auth, Graceful_Shutdown]**
+
+**Files Modified:**
+- `openbrain/src/server/index.ts` — Replaced placeholder with full MCP server entry point (~190 lines)
+- `openbrain/.vscode/mcp.json` — Updated from legacy SSE config to team configuration template with auth
+
+#### Architectural Decision: Streamable HTTP over SSE
+
+The MCP SDK provides two transport options:
+1. **`SSEServerTransport`** — Deprecated by the SDK. Uses a dedicated GET `/sse` endpoint for server→client streaming and a separate POST endpoint for client→server messages.
+2. **`StreamableHTTPServerTransport`** — Current standard. Uses a single `/mcp` endpoint that handles both POST (JSON-RPC messages) and GET (SSE streaming) on the same path. Supports stateful sessions via `Mcp-Session-Id` header.
+
+**Decision:** Use `StreamableHTTPServerTransport` (the current MCP specification). The previous `mcp.json` placeholder referenced `/sse` which was based on the deprecated transport. Updated to `/mcp` with `"type": "http"`.
+
+#### Session-per-Client Architecture
+
+Each MCP client connection creates its own `McpServer` + `StreamableHTTPServerTransport` pair. Sessions are tracked in a `Map<string, Session>`:
+
+```
+Client connects (POST /mcp, no session header)
+  → createMcpServer() — factory creates McpServer + registers all 4 tools
+  → new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() })
+  → server.connect(transport)
+  → transport.handleRequest(req, res, req.body)
+  → Transport generates session ID, returns it in Mcp-Session-Id response header
+
+Subsequent requests (POST /mcp, with Mcp-Session-Id header)
+  → Look up session in Map
+  → Route to existing transport.handleRequest()
+```
+
+**Why per-session McpServer:** The SDK's `connect()` method takes ownership of the transport and replaces any previously-set callbacks. A shared McpServer cannot serve multiple transports simultaneously. The factory pattern (`createMcpServer()`) ensures each session has an isolated server instance with all 4 tools registered.
+
+#### Entry Point Implementation (`src/server/index.ts`)
+
+**Initialization:**
+- `import "dotenv/config"` — side-effect import loads `.env` at startup
+- Port from `MCP_SERVER_PORT` env var (default 3000)
+- CORS origins from `CORS_ORIGINS` env var (default `*`, comma-separated)
+- JWT secret from `JWT_SECRET` env var
+
+**MCP Server Factory (`createMcpServer()`):**
+```typescript
+function createMcpServer(): McpServer {
+  const server = new McpServer(
+    { name: "openbrain-mcp", version: "1.0.0" },
+    { capabilities: { tools: {} } },
+  );
+  registerRemember(server);
+  registerRecall(server);
+  registerSearch(server);
+  registerForget(server);
+  return server;
+}
+```
+
+**Express Routes:**
+
+| Method | Path | Auth | Purpose |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/mcp` | Yes | Streamable HTTP message handler — creates new sessions or routes to existing |
+| `GET` | `/mcp` | Yes | SSE stream for existing sessions (via `Mcp-Session-Id` header) |
+| `DELETE` | `/mcp` | Yes | Session teardown — closes transport and server, removes from session map |
+| `GET` | `/health` | No | Health check: `{ status: "ok", version: "1.0.0", brain: "openbrain" }` |
+| `OPTIONS` | `*` | No | CORS preflight (handled by middleware, returns 204) |
+
+**CORS Middleware:**
+- Manual implementation (no external `cors` package — keeps dependencies minimal)
+- Supports configurable origins via `CORS_ORIGINS` env var
+- Exposes `Mcp-Session-Id` header (required for Streamable HTTP clients)
+- Allows `Content-Type`, `Authorization`, and `Mcp-Session-Id` request headers
+
+**Authentication Middleware:**
+- POC mode: Bearer token validated against `JWT_SECRET` env var (simple string comparison)
+- Dev mode: If `JWT_SECRET` is not set, auth is bypassed entirely (allows local development without tokens)
+- Production (Phase 3): Will be replaced with Microsoft Entra ID token validation
+- Health endpoint is excluded from auth (monitoring needs unauthenticated access)
+
+**Graceful Shutdown:**
+- Handles `SIGTERM` and `SIGINT` signals
+- Iterates all active sessions: closes transports, then closes MCP servers via `Promise.allSettled`
+- Stops HTTP server from accepting new connections
+- Logs shutdown progress
+
+#### MCP Client Configuration (`mcp.json`)
+
+Updated from the original placeholder:
+
+**Before (deprecated SSE):**
+```json
+{
+  "servers": {
+    "openbrain": {
+      "type": "sse",
+      "url": "http://localhost:3000/sse"
+    }
+  }
+}
+```
+
+**After (Streamable HTTP with auth):**
+```json
+{
+  "inputs": [
+    {
+      "id": "openbrain-token",
+      "type": "promptString",
+      "description": "Enter your bearer token for the Open Brain MCP server",
+      "password": true
+    }
+  ],
+  "servers": {
+    "openbrain-local": {
+      "type": "http",
+      "url": "http://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:openbrain-token}"
+      }
+    },
+    "openbrain-remote": {
+      "type": "http",
+      "url": "https://openbrain-aca.<region>.azurecontainerapps.io/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:openbrain-token}"
+      }
+    }
+  }
+}
+```
+
+**Key changes:**
+- `"type": "http"` — matches Streamable HTTP transport (not SSE)
+- `inputs` array — VS Code prompts for bearer token at connection time (password-masked)
+- Two server entries: `openbrain-local` (localhost) and `openbrain-remote` (Azure Container Apps placeholder)
+- `${input:openbrain-token}` — VS Code variable substitution injects the token into Authorization header
+
+#### Compilation Verification
+
+```bash
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --pretty"
+# Zero errors
+
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --listFiles 2>&1 | grep '/var/www/html/openbrain/src/server'"
+# /var/www/html/openbrain/src/server/index.ts
+# /var/www/html/openbrain/src/server/metadata/extractor.ts
+# /var/www/html/openbrain/src/server/services/database.ts
+# /var/www/html/openbrain/src/server/services/embedding.ts
+# /var/www/html/openbrain/src/server/tools/forget.ts
+# /var/www/html/openbrain/src/server/tools/recall.ts
+# /var/www/html/openbrain/src/server/tools/remember.ts
+# /var/www/html/openbrain/src/server/tools/search.ts
+```
+
+All 8 source files compile cleanly. **No remaining placeholder files** — the full source tree is implemented.
+
+#### Complete Open Brain Source Tree (after Step 8)
+
+```
+openbrain/
+├── .env.example
+├── .vscode/
+│   └── mcp.json                          ← Updated (Streamable HTTP + auth template)
+├── package.json
+├── tsconfig.json
+├── infra/
+│   ├── main.bicep                        ← Step 2 (subscription-scoped orchestrator)
+│   └── resources.bicep                   ← Step 2 (all Azure resources)
+├── sql/
+│   └── init-schema.sql                   ← Step 3 (3 tables, 4 indexes, stored proc)
+└── src/
+    └── server/
+        ├── index.ts                      ← Step 8 (MCP server entry point) ✅
+        ├── metadata/
+        │   ├── extractor.ts              ← Step 6 (rules engine, no LLM)
+        │   └── rules.config.json         ← Step 6 (pattern config v1.1)
+        ├── services/
+        │   ├── database.ts               ← Step 5 (Azure SQL, 6 functions)
+        │   └── embedding.ts              ← Step 4 (Azure OpenAI wrapper)
+        └── tools/
+            ├── forget.ts                 ← Step 7 (soft delete)
+            ├── recall.ts                 ← Step 7 (semantic vector search)
+            ├── remember.ts               ← Step 7 (store + embed + tag)
+            └── search.ts                 ← Step 7 (keyword LIKE search)
+```
+
+#### Remaining Work (after Step 8)
+
+All source code is now implemented. Remaining work is operational:
+- **Infrastructure deployment** — Bicep templates (Step 2) are written but not deployed to Azure
+- **Database initialization** — `init-schema.sql` (Step 3) needs to run against the provisioned Azure SQL
+- **Environment configuration** — `.env` with Azure OpenAI + Azure SQL credentials
+- **End-to-end testing** — Start server, connect MCP client, exercise all 4 tools
+- **Containerization** — Dockerfile for the Open Brain MCP server (for Azure Container Apps deployment)
+
+**[LLM_CONTEXT: Step 8 completes the Open Brain MCP server source code. The entry point (`index.ts`) uses the Streamable HTTP transport pattern (not deprecated SSE). Each client session gets its own McpServer instance with all 4 tools registered — this is required because `server.connect()` takes ownership of the transport. Auth is Bearer token against JWT_SECRET for POC (Entra ID in production). Health endpoint is unauthenticated. CORS is manually implemented to avoid adding a dependency. The `mcp.json` uses `"type": "http"` (not `"sse"`) with VS Code input variable substitution for the bearer token. All 8 source files in `src/server/` compile with zero errors. No placeholder files remain. Steps 1-8 are now complete.]**
+
+### Step 8.5 — Pre-Deployment Code Corrections (Mar 2026)
+**[DIFFICULTY: Intermediate] [CONCEPTS: Bicep, Azure_SQL, Key_Vault, Container_Apps, TypeScript, SQL_Schema]**
+
+**Purpose:** Code review identified 7 issues across Bicep, SQL, and TypeScript that would cause runtime failures or operational problems during Azure deployment. All fixes are surgical corrections — no architecture changes or new features.
+
+**Files Modified:**
+- `openbrain/infra/resources.bicep` — Fixes 1, 2, 3
+- `openbrain/infra/main.bicep` — Fix 4
+- `openbrain/.env.example` — Fix 4
+- `openbrain/sql/init-schema.sql` — Fixes 5, 6
+- `openbrain/src/server/services/database.ts` — Fix 7
+- `DrupalPOC.wiki/Planning.md` — Fix 6
+
+#### Fix 1 of 7 — Bicep: Inject four separate SQL env vars instead of one connection string
+
+**Problem:** `resources.bicep` injected `AZURE_SQL_CONNECTION_STRING` (a combined ADO.NET string) into the Container App. But `database.ts` reads four separate env vars: `AZURE_SQL_SERVER`, `AZURE_SQL_DATABASE`, `AZURE_SQL_USER`, `AZURE_SQL_PASSWORD`. The app would crash at runtime because those four vars were never set.
+
+**Fix:** Replaced the single `sql-connection-string` Key Vault secret with four individual secrets (`sql-server`, `sql-database`, `sql-user`, `sql-password`). Updated the Container App env vars to match the four vars that `database.ts` expects.
+
+#### Fix 2 of 7 — Bicep: Remove KV secret references from initial deploy (chicken-and-egg)
+
+**Problem:** The Container App referenced Key Vault secrets using `identity: 'system'` at creation time. But the system-assigned managed identity doesn't have RBAC access to Key Vault until AFTER the Container App exists (because the RBAC role assignment uses `containerApp.identity.principalId`). This circular dependency would cause deployment failure.
+
+**Fix:** Changed all Container App env vars from `secretRef` (Key Vault references) to plain `value` (direct Bicep parameter injection). The secrets are still protected because Bicep parameters use `@secure()` — values never appear in deployment logs or template outputs. The Key Vault secrets, KV resource, and RBAC role assignment are kept in the file for post-POC migration. Added a comment above the Container App resource explaining this decision.
+
+#### Fix 3 of 7 — Bicep: Make Key Vault name globally unique
+
+**Problem:** Key Vault names must be globally unique across all Azure tenants. The static name `openbrain-kv` would fail if any other tenant already has that name.
+
+**Fix:** Replaced `name: 'openbrain-kv'` with `name: 'kv-openbrain-${uniqueString(resourceGroup().id)}'`. This generates a deterministic but globally unique suffix based on the resource group ID, consistent across re-deployments.
+
+#### Fix 4 of 7 — Add JWT_SECRET to .env.example and Bicep
+
+**Problem:** `index.ts` reads `JWT_SECRET` from environment for Bearer token auth. Without it in the deployed Container App, the endpoint would be unauthenticated. The `.env.example` didn't include this variable.
+
+**Fix:**
+- Added `JWT_SECRET=` to `.env.example` under a new `# --- Authentication ---` section
+- Added `@secure() param jwtSecret string = ''` to `main.bicep` (with pass-through to module)
+- Added matching `@secure() param jwtSecret string` to `resources.bicep`
+- Added `JWT_SECRET` env var to the Container App template
+
+#### Fix 5 of 7 — SQL: Fix comment 'CONCEPTS' → 'CONCEPT' (singular)
+
+**Problem:** Line 65 of `init-schema.sql` had a comment using `'CONCEPTS'` (plural), but the extractor and database code consistently use `'CONCEPT'` (singular). The comment was misleading.
+
+**Fix:** Changed `'CONCEPTS'` to `'CONCEPT'` in the SQL comment on the `tag_type` column.
+
+#### Fix 6 of 7 — SQL & Planning: Clarify conversations table schema
+
+**Problem:** The conversations table schema is a Phase 2 placeholder. The ChatLog (Step 3 summary) described it with `message_text` and `inbound/outbound` direction, but the actual SQL has no `message_text` column and uses `user/assistant`. This needed documentation.
+
+**Fix:**
+- Added a `TODO [Phase 2]` comment block above the conversations table in `init-schema.sql` listing the pending schema decisions
+- Added two new post-POC backlog items to `Planning.md`:
+  1. Finalize `conversations` table schema before Phase 2
+  2. Migrate Container App secrets from direct env vars to Key Vault references
+
+#### Fix 7 of 7 — TypeScript: Add TOP limit to getUntaggedMemories()
+
+**Problem:** `getUntaggedMemories()` returned ALL untagged memories with no cap. During bulk wiki seeding (potentially hundreds of pages), this could return a massive result set and cause memory/timeout issues.
+
+**Fix:** Added a `limit: number = 100` parameter to the function signature. Added `TOP(@limit)` to the SQL query with a parameterized `@limit` value.
+
+#### Compilation Verification
+
+All three verification commands passed with zero errors:
+
+```bash
+# 1. TypeScript compilation — zero errors
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --pretty"
+
+# 2. Bicep compilation — zero errors
+ddev exec -s azure-cli az bicep build --file /mnt/project/openbrain/infra/main.bicep
+
+# 3. All 8 source files included
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --listFiles 2>&1 | grep '/var/www/html/openbrain/src/server'"
+# /var/www/html/openbrain/src/server/index.ts
+# /var/www/html/openbrain/src/server/metadata/extractor.ts
+# /var/www/html/openbrain/src/server/services/database.ts
+# /var/www/html/openbrain/src/server/services/embedding.ts
+# /var/www/html/openbrain/src/server/tools/forget.ts
+# /var/www/html/openbrain/src/server/tools/recall.ts
+# /var/www/html/openbrain/src/server/tools/remember.ts
+# /var/www/html/openbrain/src/server/tools/search.ts
+```
+
+#### Summary of Changes by File
+
+| File | Fixes Applied | Key Change |
+| :--- | :--- | :--- |
+| `resources.bicep` | 1, 2, 3 | 4 separate SQL env vars, plain values (no KV refs), unique KV name |
+| `main.bicep` | 4 | `jwtSecret` parameter + pass-through |
+| `.env.example` | 4 | `JWT_SECRET=` added |
+| `init-schema.sql` | 5, 6 | `CONCEPT` singular, Phase 2 TODO comment |
+| `database.ts` | 7 | `getUntaggedMemories(schema, limit=100)` with `TOP(@limit)` |
+| `Planning.md` | 6 | 2 new post-POC backlog items |
+
+**[LLM_CONTEXT: Step 8.5 is a pre-deployment code review correction pass — 7 surgical fixes, no architecture changes. Critical fixes: (1) resources.bicep now injects 4 separate SQL env vars matching what database.ts reads, not a combined connection string; (2) Container App uses direct env var values instead of Key Vault secret references to avoid the chicken-and-egg RBAC problem on first deploy — KV secrets and RBAC role assignment are kept for post-POC migration; (3) Key Vault name uses uniqueString() for global uniqueness; (4) JWT_SECRET flows through Bicep as @secure() param; (7) getUntaggedMemories() now has a default limit of 100 with TOP(@limit). All verifications pass: TypeScript zero errors, Bicep zero errors, all 8 source files compiled. Steps 1-8.5 are now complete.]**
