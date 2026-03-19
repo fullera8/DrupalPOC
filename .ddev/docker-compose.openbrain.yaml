@@ -1,0 +1,5 @@
+# Expose Open Brain MCP server port from web container
+services:
+  web:
+    ports:
+      - "3000:3000"

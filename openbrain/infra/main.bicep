@@ -51,6 +51,9 @@ param aoaiApiKey string
 @secure()
 param jwtSecret string = ''
 
+@description('Azure region for SQL Server (eastus2 may be blocked for new servers)')
+param sqlLocation string = 'centralus'
+
 @description('Your public IP address for SQL Server firewall rule')
 param allowedIpAddress string
 
@@ -73,6 +76,7 @@ module resources 'resources.bicep' = {
     aoaiEndpoint: aoaiEndpoint
     aoaiApiKey: aoaiApiKey
     jwtSecret: jwtSecret
+    sqlLocation: sqlLocation
     allowedIpAddress: allowedIpAddress
   }
 }

@@ -24,6 +24,9 @@ param aoaiEndpoint string
 @secure()
 param aoaiApiKey string
 
+@description('Azure region for SQL Server (may differ from primary if region is blocked)')
+param sqlLocation string
+
 @description('Your public IP address for SQL Server firewall rule')
 param allowedIpAddress string
 
@@ -35,7 +38,7 @@ param jwtSecret string
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01-preview' = {
   name: 'openbrain-sql'
-  location: location
+  location: sqlLocation
   properties: {
     administratorLogin: sqlAdminLogin
     administratorLoginPassword: sqlAdminPassword
@@ -67,7 +70,7 @@ resource fwAllowMyIP 'Microsoft.Sql/servers/firewallRules@2023-08-01-preview' = 
 resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
   parent: sqlServer
   name: 'openbrain-db'
-  location: location
+  location: sqlLocation
   sku: {
     name: 'Basic'
     tier: 'Basic'
@@ -82,7 +85,7 @@ resource sqlDatabase 'Microsoft.Sql/servers/databases@2023-08-01-preview' = {
 // ─── Azure Key Vault ────────────────────────────────────────
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: 'kv-openbrain-${uniqueString(resourceGroup().id)}'
+  name: 'kvob-${uniqueString(resourceGroup().id)}'
   location: location
   properties: {
     sku: {

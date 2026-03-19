@@ -1434,7 +1434,7 @@ The Drupal pod on AKS (`drupal-5d9f5777b7-549gm`, 2/2 containers: `drupal` + `ng
 
 **Symptom:** `drush site:install` hung with no output, then `Connection timed out` in Drupal pod logs.
 
-**Root Cause:** Azure MySQL firewall had rules for the developer's local IP (`38.27.127.48`) but not the AKS cluster's egress IP (`20.69.205.212`).
+**Root Cause:** Azure MySQL firewall had rules for the developer's local IP (`***REDACTED_IP***`) but not the AKS cluster's egress IP (`20.69.205.212`).
 
 **Fix:**
 ```powershell
@@ -1447,7 +1447,7 @@ ddev exec -s azure-cli az mysql flexible-server firewall-rule create \
 
 | IP Address | What It Is | Used For |
 | :--- | :--- | :--- |
-| `38.27.127.48` | Developer's local public IP | Azure SQL/MySQL `AllowLocalDev` firewall rules |
+| `***REDACTED_IP***` | Developer's local public IP | Azure SQL/MySQL `AllowLocalDev` firewall rules |
 | `20.69.205.212` | AKS cluster egress (outbound) IP | Azure SQL/MySQL `AllowAKS` firewall rules |
 | `20.85.112.48` | AKS ingress (inbound) external IP | Browser access to services (`http://20.85.112.48/...`) |
 
@@ -3979,3 +3979,562 @@ ddev exec bash -c "cd /var/www/html/openbrain && npx tsc --noEmit --listFiles 2>
 | `Planning.md` | 6 | 2 new post-POC backlog items |
 
 **[LLM_CONTEXT: Step 8.5 is a pre-deployment code review correction pass — 7 surgical fixes, no architecture changes. Critical fixes: (1) resources.bicep now injects 4 separate SQL env vars matching what database.ts reads, not a combined connection string; (2) Container App uses direct env var values instead of Key Vault secret references to avoid the chicken-and-egg RBAC problem on first deploy — KV secrets and RBAC role assignment are kept for post-POC migration; (3) Key Vault name uses uniqueString() for global uniqueness; (4) JWT_SECRET flows through Bicep as @secure() param; (7) getUntaggedMemories() now has a default limit of 100 with TOP(@limit). All verifications pass: TypeScript zero errors, Bicep zero errors, all 8 source files compiled. Steps 1-8.5 are now complete.]**
+
+---
+
+### Step 9 — Deploy text-embedding-3-small to Azure OpenAI (Mar 18, 2026)
+**[SECTION_METADATA: CONCEPTS=Azure_OpenAI,Embeddings,Model_Deployment,DDEV_Azure_CLI | DIFFICULTY=Beginner | TOOLS=Azure_CLI,DDEV | RESPONDS_TO: Implementation_How-To]**
+
+#### Objective
+
+Deploy the `text-embedding-3-small` embedding model to the existing Azure OpenAI resource (`ps-azopenai-eastus-afuller2`) so the Open Brain MCP server can generate vector embeddings for its memory storage and semantic search features.
+
+#### Prerequisites
+
+- Azure CLI authenticated via DDEV sidecar (`ddev exec -s azure-cli az login`)
+- Existing Azure OpenAI resource: `ps-azopenai-eastus-afuller2` in `AzureOpenAIRG` (eastus2)
+
+#### Step-by-Step Execution
+
+**1. List existing Azure OpenAI resources:**
+```powershell
+ddev exec -s azure-cli az cognitiveservices account list \
+  --query "[?kind=='OpenAI'].{name:name, resourceGroup:resourceGroup, location:location}" \
+  -o table
+```
+
+**Result:**
+```
+Name                         ResourceGroup    Location
+---------------------------  ---------------  ----------
+ps-azopenai-eastus-afuller2  AzureOpenAIRG    eastus2
+```
+
+Confirmed: one Azure OpenAI resource, matching what's referenced in `.env.example` and `resources.bicep`.
+
+**2. Deploy the embedding model:**
+```powershell
+ddev exec -s azure-cli az cognitiveservices account deployment create \
+  --name ps-azopenai-eastus-afuller2 \
+  --resource-group AzureOpenAIRG \
+  --deployment-name text-embedding-3-small \
+  --model-name text-embedding-3-small \
+  --model-version "1" \
+  --model-format OpenAI \
+  --sku-capacity 1 \
+  --sku-name "Standard"
+```
+
+**Result:** `provisioningState: "Succeeded"` — model deployed successfully.
+
+**Key deployment properties:**
+| Property | Value |
+| :--- | :--- |
+| Deployment name | `text-embedding-3-small` |
+| Model | `text-embedding-3-small` v1 (OpenAI format) |
+| SKU | Standard, capacity 1 |
+| Rate limits | 1 request/10s, 1000 tokens/60s |
+| Capabilities | `embeddings: true`, max inputs 2048 |
+| RAI policy | `Microsoft.DefaultV2` |
+| Version upgrade | `OnceNewDefaultVersionAvailable` |
+
+**3. Verify the deployment:**
+```powershell
+ddev exec -s azure-cli az cognitiveservices account deployment show \
+  --name ps-azopenai-eastus-afuller2 \
+  --resource-group AzureOpenAIRG \
+  --deployment-name text-embedding-3-small
+```
+
+**Result:** `provisioningState: "Succeeded"` confirmed. All properties match the create output.
+
+**4. Retrieve endpoint and API key:**
+```powershell
+# Endpoint
+ddev exec -s azure-cli az cognitiveservices account show \
+  --name ps-azopenai-eastus-afuller2 \
+  --resource-group AzureOpenAIRG \
+  --query "properties.endpoint" -o tsv
+# → https://ps-azopenai-eastus-afuller2.openai.azure.com/
+
+# API key
+ddev exec -s azure-cli az cognitiveservices account keys list \
+  --name ps-azopenai-eastus-afuller2 \
+  --resource-group AzureOpenAIRG \
+  --query "key1" -o tsv
+# → [retrieved — stored in .env.example only]
+```
+
+#### .env.example Verification
+
+The endpoint and key were already present in `openbrain/.env.example` from the initial project scaffold (Step 1). No file changes were needed — all values match the deployed resource:
+
+```env
+AZURE_OPENAI_ENDPOINT=https://ps-azopenai-eastus-afuller2.openai.azure.com/
+AZURE_OPENAI_API_KEY=[redacted — in .env.example only]
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small
+EMBEDDING_DIMENSIONS=1536
+```
+
+#### Security Verification
+
+| Check | Status | Evidence |
+| :--- | :--- | :--- |
+| API key only in `.env.example` | ✅ | `git ls-files --cached openbrain/.env.example` returns empty |
+| `.env.example` in `.gitignore` | ✅ | Listed on line 10 of `openbrain/.gitignore` |
+| `.env` in `.gitignore` | ✅ | Listed on line 8 of `openbrain/.gitignore` |
+| Neither file tracked by git | ✅ | `git ls-files --cached` returns empty for both |
+
+#### How This Connects to Open Brain
+
+The `text-embedding-3-small` model is consumed by the embedding service (`openbrain/src/server/services/embedding.ts`), which uses the `AzureOpenAI` client from the `openai` npm package. The call chain:
+
+```
+remember tool → embedding.ts → Azure OpenAI (text-embedding-3-small) → 1536-dim vector
+recall tool   → embedding.ts → Azure OpenAI (text-embedding-3-small) → 1536-dim vector
+                                     ↓
+                              database.ts → Azure SQL VECTOR_DISTANCE(cosine)
+```
+
+The embedding service reads `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_EMBEDDING_DEPLOYMENT`, and `EMBEDDING_DIMENSIONS` from environment variables (loaded by `dotenv` from `.env`).
+
+**[LLM_CONTEXT: Step 9 deployed text-embedding-3-small (v1, Standard SKU, capacity 1) to the existing Azure OpenAI resource ps-azopenai-eastus-afuller2 in AzureOpenAIRG (eastus2). The deployment is live with provisioningState "Succeeded". Rate limits: 1 req/10s, 1000 tokens/60s. The API key is stored ONLY in openbrain/.env.example which is excluded from git via .gitignore — neither .env nor .env.example are tracked. The endpoint, key, deployment name, and dimensions were already in .env.example from Step 1 — no file changes were needed. This model powers the embedding service (embedding.ts) which is called by the remember and recall MCP tools. Steps 1-9 are now complete. Remaining: Azure SQL provisioning, database schema initialization, Container App deployment, end-to-end testing.]**
+
+---
+
+## Step 10 — Provision Azure Infrastructure & Initialize Database Schema
+
+### Objective
+
+Deploy all Azure infrastructure defined in the Bicep templates (Step 2) to the Training subscription, then initialize the SQL database schema (Step 3) against the live Azure SQL instance.
+
+### Deployment Plan (5 Substeps)
+
+1. Validate Bicep templates via `az deployment sub validate`
+2. Deploy via `az deployment sub create` (subscription-scoped)
+3. Capture deployment outputs (Resource Group, SQL FQDN, Key Vault name, ACA URL)
+4. Initialize the SQL database schema against the live instance
+5. Verify schema tables exist
+
+### Deployment Issues & Fixes
+
+The deployment required **4 attempts** before succeeding. Each failure exposed a distinct issue:
+
+#### Attempt 1 — Two Failures
+
+**Issue A: Key Vault name too long**
+- Original name pattern: `kv-openbrain-${uniqueString(resourceGroup().id)}` → `kv-openbrain-7kqm2qodhvyos` (27 chars)
+- Azure Key Vault names have a **24-character maximum**
+- **Fix**: Changed prefix from `kv-openbrain-` to `kvob-` in `resources.bicep` → `kvob-7kqm2qodhvyos` (18 chars)
+
+**Issue B: SQL Server region blocked**
+- Error: `RegionDoesNotAllowProvisioning` — eastus2 not accepting new Azure SQL Server resources
+- **Fix**: Added a new `sqlLocation` parameter (default `centralus`) to both `main.bicep` and `resources.bicep`. SQL Server and Database resources use `sqlLocation`; all other resources remain in `eastus2`.
+
+#### Attempt 2 — Ghost Resource Conflict
+
+- The failed first deployment left a ghost `openbrain-sql` server registered in eastus2
+- This blocked the centralus redeploy because the resource name was "taken" in the deployment state
+- **Fix**: Deleted the entire `rg-openbrain` resource group (`az group delete --yes --no-wait`) and redeployed from scratch. User approved this destructive action.
+
+#### Attempt 3 — Stale ARM Template (main.json)
+
+- A compiled `main.json` (ARM template) existed alongside the `.bicep` source files in `openbrain/infra/`
+- When `az deployment sub create --template-file main.bicep` runs, the CLI auto-compiles Bicep to ARM — but the presence of the stale `main.json` caused Azure to use the old compiled template with the incorrect Key Vault name (`kv-openbrain-*`)
+- **Fix**: Deleted the stale `main.json` file. Only `.bicep` source files should exist in `openbrain/infra/`.
+
+#### Attempt 4 — Success
+
+After all fixes and waiting for the resource group deletion to complete (~5 minutes due to Container Apps Environment cleanup):
+
+```
+az deployment sub create \
+  --location eastus2 \
+  --template-file /mnt/project/openbrain/infra/main.bicep \
+  --parameters sqlAdminPassword='<redacted>' aoaiApiKey='<redacted>' allowedIpAddress='***REDACTED_IP***'
+```
+
+Result: `provisioningState: "Succeeded"`, duration 3m24s.
+
+### Deployment Outputs
+
+| Output | Value |
+|---|---|
+| `resourceGroupName` | `rg-openbrain` |
+| `sqlServerFqdn` | `openbrain-sql.database.windows.net` |
+| `keyVaultName` | `kvob-7kqm2qodhvyos` |
+| `acaUrl` | `openbrain-aca.politehill-8ea585d8.eastus2.azurecontainerapps.io` |
+| `acaEnvironmentName` | `openbrain-aca-env` |
+
+### Resources Created (16 total)
+
+- Resource Group: `rg-openbrain` (eastus2)
+- SQL Server: `openbrain-sql` (centralus) + Database: `openbrain-db` (Basic DTU 5) + 2 firewall rules
+- Key Vault: `kvob-7kqm2qodhvyos` (eastus2) + 6 secrets + 1 RBAC role assignment
+- Container Apps Environment: `openbrain-aca-env` (eastus2) + Container App: `openbrain-aca` (placeholder image)
+- Log Analytics Workspace: `openbrain-logs` (eastus2)
+
+### Schema Initialization
+
+The `sqlcmd` utility is not available in the DDEV azure-cli sidecar (Alpine-based). Instead, two Node.js scripts were created to run against Azure SQL via the `tedious` driver (already in `node_modules`):
+
+#### `openbrain/sql/run-schema.js`
+
+Reads `init-schema.sql`, splits on `GO` batch separators, filters for batches containing non-comment SQL statements, and executes each batch sequentially using `execSqlBatch`. Run from the DDEV web container:
+
+```bash
+ddev exec bash -c "cd /var/www/html/openbrain && \
+  AZURE_SQL_SERVER=openbrain-sql.database.windows.net \
+  AZURE_SQL_DATABASE=openbrain-db \
+  AZURE_SQL_USER=<redacted> \
+  AZURE_SQL_PASSWORD=<redacted> \
+  node sql/run-schema.js"
+```
+
+Result: 10 batches executed, all OK.
+
+**Bug fix during execution**: The original batch filter `!b.startsWith('--')` incorrectly filtered out batches whose first line was a SQL comment. Changed to check whether the batch contains at least one non-comment, non-empty line.
+
+#### `openbrain/sql/verify-schema.js`
+
+Queries `INFORMATION_SCHEMA.TABLES` for the `brain_default` schema. Result:
+
+```
+Tables in brain_default schema:
+  - conversations
+  - memories
+  - metadata
+```
+
+All 3 tables confirmed present.
+
+### Bicep File Changes (Step 10)
+
+**`openbrain/infra/main.bicep`**:
+- Added `sqlLocation` parameter (type `string`, default `'centralus'`)
+- Passes `sqlLocation` through to the `resources` module
+
+**`openbrain/infra/resources.bicep`**:
+- Added `sqlLocation` parameter
+- Changed Key Vault name from `'kv-openbrain-${uniqueString(resourceGroup().id)}'` to `'kvob-${uniqueString(resourceGroup().id)}'`
+- SQL Server and SQL Database resources use `sqlLocation` instead of `location`
+
+### New Files Created (Step 10)
+
+| File | Purpose |
+|---|---|
+| `openbrain/sql/run-schema.js` | Node.js script to execute `init-schema.sql` against Azure SQL via tedious |
+| `openbrain/sql/verify-schema.js` | Node.js script to verify schema tables exist |
+
+### Lessons Learned
+
+1. **Always delete stale compiled ARM templates** (`main.json`) when working with Bicep source files. The CLI may silently use the old JSON instead of recompiling from `.bicep`.
+2. **Azure SQL Server region availability varies** — eastus2 blocked new SQL servers at the time of deployment. Use a separate location parameter for SQL resources.
+3. **Key Vault names must be ≤ 24 characters** including the `uniqueString` suffix. Keep prefixes short.
+4. **Failed Bicep deployments can leave ghost resources** that block redeployment. A clean RG delete + redeploy is the cleanest fix.
+5. **Alpine-based containers lack common tools** like `sqlcmd` and `apt`. Use language-native solutions (e.g., Node.js + tedious) instead.
+
+**[LLM_CONTEXT: Step 10 deployed all Azure infrastructure via Bicep (subscription-scoped, 4th attempt succeeded after 3 fixes: KV name shortened kvob-*, SQL moved to centralus, stale main.json deleted). 16 resources created in rg-openbrain. SQL Server FQDN: openbrain-sql.database.windows.net. Key Vault: kvob-7kqm2qodhvyos. Container App URL: openbrain-aca.politehill-8ea585d8.eastus2.azurecontainerapps.io (placeholder image). Database schema initialized via Node.js runner script (sql/run-schema.js) — 10 batches, 3 tables confirmed (conversations, memories, metadata) in brain_default schema. Bicep changes: main.bicep and resources.bicep both got sqlLocation param (default centralus) and KV name prefix shortened. New files: sql/run-schema.js, sql/verify-schema.js. Steps 1-10 complete. Remaining: build Docker image for MCP server, push to registry, update Container App from placeholder to real image, configure environment variables from Key Vault, end-to-end testing.]**
+
+---
+
+## Step 11 — Build, Test Locally, and Deploy to Azure Container Apps
+
+### Part A — Local Build & Test
+
+#### Task 1: Create `.env` file
+
+Copied `.env.example` values and wrote `openbrain/.env` from Windows PowerShell with all actual Azure credentials:
+
+| Variable | Value |
+|---|---|
+| `AZURE_SQL_SERVER` | `openbrain-sql.database.windows.net` |
+| `AZURE_SQL_DATABASE` | `openbrain-db` |
+| `AZURE_SQL_USER` | *(redacted — stored in KeePass & Key Vault)* |
+| `AZURE_SQL_PASSWORD` | *(redacted — stored in KeePass & Key Vault)* |
+| `AZURE_OPENAI_ENDPOINT` | `https://ps-azopenai-eastus-afuller2.openai.azure.com` |
+| `AZURE_OPENAI_API_KEY` | *(set)* |
+| `AZURE_OPENAI_EMBEDDING_DEPLOYMENT` | `text-embedding-3-small` |
+| `EMBEDDING_DIMENSIONS` | `1536` |
+| `SIMILARITY_THRESHOLD` | `0.7` |
+| `TOP_K_RESULTS` | `5` |
+| `MCP_SERVER_PORT` | `3000` |
+| `JWT_SECRET` | *(empty — dev mode skips auth)* |
+
+**Issue encountered:** `.env.example` in the DDEV container had blank `AZURE_SQL_USER` and `AZURE_SQL_PASSWORD`. Fixed by writing `.env` directly from Windows PowerShell.
+
+#### Task 2: Compile TypeScript
+
+```bash
+ddev exec bash -c "cd /var/www/html/openbrain && npx tsc 2>&1"
+```
+
+Result: **Zero errors.** Output confirmed in `dist/server/` (index.js, tools/*, services/*, metadata/*).
+
+**Issue encountered:** `rules.config.json` (a non-TS file) was not copied to `dist/` by `tsc`. Fixed by:
+1. Manually copying: `cp src/server/metadata/rules.config.json dist/server/metadata/rules.config.json`
+2. Updating `package.json` build script: `"build": "tsc && cp src/server/metadata/rules.config.json dist/server/metadata/rules.config.json"`
+
+#### Task 3: Start Server Locally
+
+**Issue encountered:** DDEV `exec` kills background processes when the shell exits. Solution: run server AND tests in a single `ddev exec` call with `node ... &` + tests in the same session.
+
+#### Task 4: Test Health Endpoint
+
+```bash
+curl -s http://localhost:3000/health
+```
+
+Response: `{"status":"ok","version":"1.0.0","brain":"openbrain"}` ✅
+
+#### Task 5: Test All 4 MCP Tools
+
+Created `openbrain/test-mcp.sh` — an integration test script that exercises the full MCP protocol:
+
+1. **Health check** → `200 OK` ✅
+2. **Initialize MCP session** → `protocolVersion: 2025-03-26`, got `Mcp-Session-Id` header ✅
+3. **Send `notifications/initialized`** → `202 Accepted` ✅
+4. **Remember** → Memory #1 stored. Concepts: Angular, DotNet8. Status: tagged. 3 total tags. ✅
+5. **Recall** → Memory #1 found, similarity 0.719. Tags: `CONCEPT:Angular`, `CONCEPT:DotNet8`, `DIFFICULTY:Advanced`. ✅
+6. **Search** → Memory #1 found matching keyword "Drupal". ✅
+7. **Forget** → Memory #1 soft-deleted. ✅
+8. **Verify forget** → "No memories found containing Drupal" — correctly excluded. ✅
+
+**Issues encountered:**
+- Session ID extraction: `grep -i 'mcp-session-id'` matched both `Access-Control-Allow-Headers` and the actual header. Fixed with `grep -i '^mcp-session-id:'`.
+- `.env` had empty SQL credentials initially. Fixed by rewriting from Windows PowerShell.
+
+### Part B — Deploy to Azure Container Apps
+
+#### Task 6: Create ACR & Push Image
+
+**ACR creation:**
+```bash
+az acr create --name openbrainacr --resource-group rg-openbrain --sku Basic --location eastus2
+```
+
+**Issue encountered:** `MissingSubscriptionRegistration` for `Microsoft.ContainerRegistry`. Fixed with `az provider register --namespace Microsoft.ContainerRegistry` (~5 min registration).
+
+Result: `openbrainacr.azurecr.io`, Basic SKU, eastus2. ✅
+
+**Docker image build:**
+
+Created `openbrain/.dockerignore` (excludes `node_modules/`, `dist/`, `.env`, `.git/`, etc.).
+
+ACR cloud build (`az acr build`) failed (exit status 1 — likely large context upload without `.dockerignore` applied). Pivoted to local Docker Desktop build:
+
+```bash
+docker build -t openbrainacr.azurecr.io/openbrain-mcp:v1 .
+```
+
+Result: 14/14 steps completed in 16.7s. ✅
+
+**Push to ACR:**
+
+Enabled ACR admin user, obtained credentials, then:
+
+```bash
+docker login openbrainacr.azurecr.io -u openbrainacr
+docker push openbrainacr.azurecr.io/openbrain-mcp:v1
+```
+
+Result: 10 layers pushed. Digest `sha256:321a3fd4a63fbfed98c09a7c9be9b328d515cdb17b2b19b8168aa278a1274347`. Tag `v1` confirmed. ✅
+
+#### Task 7: Update ACA with Real Image
+
+**Configure ACR pull credentials on ACA:**
+```bash
+az containerapp registry set --name openbrain-aca --resource-group rg-openbrain \
+  --server openbrainacr.azurecr.io --username openbrainacr --password <acr-admin-password>
+```
+
+**Update container image and set environment variables:**
+```bash
+az containerapp update --name openbrain-aca --resource-group rg-openbrain \
+  --image openbrainacr.azurecr.io/openbrain-mcp:v1 \
+  --set-env-vars AZURE_SQL_SERVER=openbrain-sql.database.windows.net \
+    AZURE_SQL_DATABASE=openbrain-db AZURE_SQL_USER=<redacted> \
+    AZURE_SQL_PASSWORD=<password> AZURE_OPENAI_ENDPOINT=<endpoint> \
+    AZURE_OPENAI_API_KEY=<key> AZURE_OPENAI_EMBEDDING_DEPLOYMENT=text-embedding-3-small \
+    EMBEDDING_DIMENSIONS=1536 SIMILARITY_THRESHOLD=0.7 TOP_K_RESULTS=5 \
+    MCP_SERVER_PORT=3000 JWT_SECRET=
+```
+
+Result: `provisioningState: Succeeded`, `runningStatus: Running`. New revision `openbrain-aca--0000001`. ✅
+
+#### Task 8: Verify Remote Deployment
+
+```
+curl https://openbrain-aca.politehill-8ea585d8.eastus2.azurecontainerapps.io/health
+```
+
+Response: `200 OK` — `{"status":"ok","version":"1.0.0","brain":"openbrain"}` ✅
+
+#### Task 9: Update `.vscode/mcp.json`
+
+Updated `openbrain-remote` URL from placeholder `<region>` to actual ACA FQDN:
+```
+https://openbrain-aca.politehill-8ea585d8.eastus2.azurecontainerapps.io/mcp
+```
+
+### New Files Created (Step 11)
+
+| File | Purpose |
+|---|---|
+| `openbrain/.env` | Environment variables with actual Azure credentials (not in git) |
+| `openbrain/.dockerignore` | Excludes node_modules, dist, .env, .git from Docker build context |
+| `openbrain/test-mcp.sh` | Integration test script — exercises all 4 MCP tools via curl |
+
+### Files Modified (Step 11)
+
+| File | Change |
+|---|---|
+| `openbrain/package.json` | Build script updated to copy `rules.config.json` to dist |
+| `openbrain/.vscode/mcp.json` | `openbrain-remote` URL updated with actual ACA FQDN |
+
+### Lessons Learned
+
+1. **`tsc` only compiles `.ts` files** — non-TypeScript assets like `.json` config files must be explicitly copied in the build script.
+2. **DDEV `exec` kills background processes** when the shell exits. Run server + tests in a single exec with `&` backgrounding.
+3. **ACR cloud build context** uploads the entire working directory. Always create `.dockerignore` before using `az acr build`.
+4. **`Microsoft.ContainerRegistry` provider must be registered** before creating an ACR. Use `az provider register` and wait ~5 minutes.
+5. **MCP session ID extraction** must be anchored (`^mcp-session-id:`) to avoid matching the same string inside CORS headers.
+6. **ACA `minReplicas: 0`** means cold starts on first request. The health endpoint still responds within seconds.
+
+### Azure Resource Summary (After Step 11)
+
+| Resource | Name / FQDN | Location |
+|---|---|---|
+| Resource Group | `rg-openbrain` | eastus2 |
+| Container Registry | `openbrainacr.azurecr.io` | eastus2 |
+| Container App | `openbrain-aca.politehill-8ea585d8.eastus2.azurecontainerapps.io` | eastus2 |
+| Container App Env | `openbrain-aca-env` | eastus2 |
+| SQL Server | `openbrain-sql.database.windows.net` | centralus |
+| SQL Database | `openbrain-db` | centralus |
+| Key Vault | `kvob-7kqm2qodhvyos` | eastus2 |
+| OpenAI | `ps-azopenai-eastus-afuller2.openai.azure.com` | eastus |
+
+**[LLM_CONTEXT: Step 11 completed: TypeScript compiles clean, all 4 MCP tools pass integration tests locally (remember, recall, search, forget), Docker image built and pushed to openbrainacr.azurecr.io/openbrain-mcp:v1, ACA updated from placeholder to real image with all env vars set, remote health endpoint returns 200 OK. ACR: openbrainacr (Basic, eastus2, admin-enabled). ACA FQDN: openbrain-aca.politehill-8ea585d8.eastus2.azurecontainerapps.io. mcp.json updated with actual URL. New files: .env (not in git), .dockerignore, test-mcp.sh. Modified: package.json (build copies rules.config.json), .vscode/mcp.json (remote URL). Steps 1-11 complete. The Open Brain MCP server is deployed and operational on Azure Container Apps.]**
+
+---
+
+## Step 12 — End-to-End Integration Testing with VS Code Copilot
+
+**[SECTION_METADATA: CONCEPTS=MCP,Open_Brain,Copilot_Agent,Integration_Testing,DDEV,Azure_Container_Apps | DIFFICULTY=Intermediate | RESPONDS_TO: Implementation_How-To, Debugging_Story]**
+
+### Objective
+
+Validate that all 4 Open Brain MCP tools (`remember`, `recall`, `search`, `forget`) work end-to-end when invoked natively through GitHub Copilot in VS Code Agent mode — both against the **local server** (DDEV, localhost:3000) and the **remote server** (Azure Container Apps). Steps 1–11 verified the tools via `curl` and `test-mcp.sh`; Step 12 tests the real user workflow: **a developer talks to Copilot, and Copilot calls Open Brain tools behind the scenes**.
+
+### Infrastructure Fixes (2 Issues Discovered)
+
+Before testing could proceed, two infrastructure issues had to be resolved:
+
+#### Fix 1 — MCP Config Discovery (workspace root `.vscode/mcp.json`)
+
+**Problem:** VS Code could not discover Open Brain's MCP tools. The Copilot Agent panel showed no `openbrain-local` or `openbrain-remote` servers.
+
+**Root cause:** The MCP config file was located at `openbrain/.vscode/mcp.json` — a subdirectory. VS Code only auto-discovers MCP servers from the **workspace root** `.vscode/mcp.json`. When the `DrupalPOC/` folder is opened as the workspace, VS Code never looks inside `openbrain/.vscode/`.
+
+**Fix:** Created a duplicate config at the workspace root:
+
+```
+DrupalPOC/.vscode/mcp.json    ← NEW (VS Code discovers this)
+openbrain/.vscode/mcp.json     ← Kept (for standalone workspace use)
+```
+
+Both files have identical content (two server entries: `openbrain-local` at localhost:3000 and `openbrain-remote` at ACA FQDN).
+
+#### Fix 2 — DDEV Port 3000 Not Exposed to Host
+
+**Problem:** After starting the Open Brain server inside the DDEV container (`ddev exec bash -c "cd /var/www/html/openbrain && node dist/server/index.js"`), `curl http://localhost:3000` from the Windows host failed with "connection refused". Port 3000 inside the container was not mapped to the host network.
+
+**Root cause:** DDEV only exposes its default ports (80, 443, etc.) to the host. Custom application ports like 3000 require an explicit docker-compose override file.
+
+**Fix:** Created `.ddev/docker-compose.openbrain.yaml` following the existing pattern of `.ddev/docker-compose.angular.yaml` (which maps port 4200):
+
+```yaml
+services:
+  web:
+    ports:
+      - "3000:3000"
+```
+
+After running `ddev restart`, the server became accessible from the Windows host:
+```
+curl http://localhost:3000/health
+→ {"status":"ok","version":"1.0.0","brain":"openbrain"}
+```
+
+**Lesson:** DDEV treats `ddev exec` as a one-shot command — background processes started with `&` inside `ddev exec` are killed when the exec shell exits. The server must be started in a persistent background terminal session, not via `ddev exec ... &`.
+
+### Test Plan
+
+6 test cases per server (local + remote = 12 total). Tests executed by asking GitHub Copilot in Agent mode to perform natural-language requests, which Copilot translates into MCP tool calls.
+
+| # | Test | Tool | Expected Result |
+|---|---|---|---|
+| 1 | Store a multi-concept fact | `remember` | Returns memory ID, extracted concepts, tag count |
+| 2 | Semantic recall (related query) | `recall` | Finds the stored memory with similarity score |
+| 3 | Semantic recall (unrelated query) | `recall` | Returns "No relevant memories found" (no hallucination) |
+| 4 | Keyword search (exact term) | `search` | Finds memory via LIKE match |
+| 5 | Forget + verify deleted | `forget` + `recall` | Soft deletes; subsequent recall returns nothing |
+| 6 | Store an unknown/untaggable fact | `remember` | Returns memory ID with "untagged" status (no false concepts) |
+
+### Local Server Results (DDEV — localhost:3000)
+
+Server: `openbrain-local` via `.vscode/mcp.json`
+
+| # | Input | Tool Called | Result | Status |
+|---|---|---|---|---|
+| 1 | _"Remember that our AKS deployment uses GoPhish for phishing simulations with Azure MySQL as the backing store"_ | `mcp_openbrain-loc_remember` | ID: 3, Concepts: AKS + GoPhish, 4 tags, Status: tagged | ✅ Pass |
+| 2 | _"What did we decide about phishing?"_ | `mcp_openbrain-loc_recall` | Found memory #3, similarity: 0.509 | ✅ Pass |
+| 3 | _"What is the team's policy on vacation days?"_ | `mcp_openbrain-loc_recall` | "No relevant memories found" | ✅ Pass |
+| 4 | _"Search for memories mentioning GoPhish"_ | `mcp_openbrain-loc_search` | Found memory #3 via LIKE match | ✅ Pass |
+| 5 | _"Forget memory #3"_ → _"What do you know about phishing?"_ | `mcp_openbrain-loc_forget` → `mcp_openbrain-loc_recall` | Soft-deleted; recall returns nothing | ✅ Pass |
+| 6 | _"Remember that Terraform is being evaluated for infrastructure-as-code"_ | `mcp_openbrain-loc_remember` | ID: 4, Concepts: none, Status: untagged, 2 tags | ✅ Pass |
+
+### Remote Server Results (Azure Container Apps)
+
+Server: `openbrain-remote` via `.vscode/mcp.json`
+
+| # | Input | Tool Called | Result | Status |
+|---|---|---|---|---|
+| 1 | _"Remember that our AKS deployment uses GoPhish for phishing simulations with Azure MySQL as the backing store"_ | `mcp_openbrain-rem_remember` | ID: 5, Concepts: AKS + GoPhish, 4 tags, Status: tagged | ✅ Pass |
+| 2 | _"What did we decide about phishing?"_ | `mcp_openbrain-rem_recall` | Found memory #5, similarity: 0.509 | ✅ Pass |
+| 3 | _"What is the team's policy on vacation days?"_ | `mcp_openbrain-rem_recall` | "No relevant memories found" | ✅ Pass |
+| 4 | _"Search for memories mentioning GoPhish"_ | `mcp_openbrain-rem_search` | Found memory #5 via LIKE match | ✅ Pass |
+| 5 | _"Forget memory #5"_ → _"What do you know about phishing?"_ | `mcp_openbrain-rem_forget` → `mcp_openbrain-rem_recall` | Soft-deleted; recall returns nothing | ✅ Pass |
+| 6 | _"Remember that Terraform is being evaluated for infrastructure-as-code"_ | `mcp_openbrain-rem_remember` | ID: 6, Concepts: none, Status: untagged, 2 tags | ✅ Pass |
+
+### Key Observations
+
+1. **Shared database confirmed.** Local server (DDEV) and remote server (ACA) both connect to the same Azure SQL database (`openbrain-db`). Memory IDs are globally sequential: local tests produced IDs 3–4, remote tests produced IDs 5–6. This confirms the stateless server architecture — the server is interchangeable, the database is the source of truth.
+
+2. **Similarity scores identical.** Both local and remote returned similarity 0.509 for the "phishing" recall query against the same content. This confirms deterministic embedding behavior from Azure OpenAI.
+
+3. **No hallucination on unrelated queries.** Both servers correctly returned "No relevant memories found" for the vacation days query (Test 3), confirming the similarity threshold (0.3) prevents false positives.
+
+4. **Untagged status works correctly.** "Terraform" is not in `rules.config.json`'s concept patterns, so both servers returned `Status: untagged`. The 2 tags represent `METADATA_STATUS:untagged` + `RESPONDS_TO:Definition_Explanation` — the rule engine doesn't invent concepts.
+
+5. **Copilot tool name convention.** VS Code MCP names tools as `mcp_<server-name>_<tool-name>`. The `-loc` / `-rem` suffix comes from the server names `openbrain-local` → `openbrain-loc` and `openbrain-remote` → `openbrain-rem` (VS Code truncates to fit).
+
+### New Files Created (Step 12)
+
+| File | Purpose |
+|---|---|
+| `.vscode/mcp.json` | Workspace root MCP config (enables VS Code discovery when `DrupalPOC/` is the workspace) |
+| `.ddev/docker-compose.openbrain.yaml` | Exposes port 3000 from DDEV web container to Windows host |
+
+### Files Modified (Step 12)
+
+_No source code modifications were required._ All 4 MCP tools worked correctly without code changes. The two fixes were infrastructure/configuration only.
+
+### Lessons Learned
+
+1. **VS Code MCP discovery is workspace-root-only.** `.vscode/mcp.json` must exist at the root of the opened folder. Subdirectory configs (e.g., `openbrain/.vscode/mcp.json`) are invisible when a parent folder is the workspace. Maintain both files: root for DrupalPOC workspace, subdirectory for standalone `openbrain/` workspace.
+2. **DDEV requires explicit port mapping for custom ports.** Use docker-compose override files (e.g., `.ddev/docker-compose.openbrain.yaml`) following the `docker-compose.<service>.yaml` naming convention. The pattern matches `.ddev/docker-compose.angular.yaml` (port 4200).
+3. **`ddev exec` is a one-shot shell.** Background processes (`&`) started inside `ddev exec` die when the exec session ends. Use a persistent terminal session to keep servers running.
+4. **Integration testing is not redundant with unit/curl testing.** Steps 1–11 tested tools via `curl` and `test-mcp.sh`. Step 12 tested the real workflow: VS Code → Copilot → MCP protocol handshake → tool call → Azure SQL → response. The two infrastructure issues (mcp.json location, port mapping) were invisible to curl-based tests because curl bypasses VS Code discovery entirely.
+
+**[LLM_CONTEXT: Step 12 completed: End-to-end integration testing of all 4 Open Brain MCP tools via native VS Code Copilot Agent mode. 12 tests executed (6 local + 6 remote), all passed. Two infrastructure fixes applied before testing: (1) workspace root .vscode/mcp.json created for VS Code MCP discovery, (2) .ddev/docker-compose.openbrain.yaml created to expose port 3000 from DDEV container. No source code changes needed. Local memory IDs: 3-4. Remote memory IDs: 5-6. Sequential IDs confirm shared Azure SQL database (stateless server architecture). Both servers returned identical similarity scores (0.509) for the same query, confirming deterministic embedding behavior. Steps 1-12 complete. Open Brain is fully deployed, tested, and integrated with VS Code Copilot.]**

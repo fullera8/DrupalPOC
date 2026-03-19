@@ -8,6 +8,7 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 
 ### Architecture & Planning
 - **[🏗️ Architecture](Architecture)** - POC architecture diagram (Mermaid), service inventory, build-vs-borrow strategy
+- **[🧠 Open Brain](Open-Brain)** - LLM-agnostic persistent memory MCP server — architecture, tools, connection guide, technical deep dive
 - **[📋 Planning](Planning)** - Day-by-day task breakdown with checkboxes, Azure provisioning checklist, risk register, post-POC backlog
 - **[💰 Budget](Budget)** - Production capacity estimates, Azure tier recommendations, TCO comparison vs. commercial SaaS
 
@@ -41,6 +42,7 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 - **Local Development:** DDEV v1.25.0 (PHP 8.4, MariaDB 11.8, Drush 13.7.1)
 - **Azure CLI:** Containerized as DDEV sidecar (`mcr.microsoft.com/azure-cli:latest`) with kubectl — no local Azure CLI install required
 - **Cloud:** Microsoft Azure (Resource Group: `rg-fulleralex47-0403` in eastus2)
+- **Open Brain MCP Server:** LLM-agnostic persistent memory layer — 4 tools (remember, recall, search, forget) over MCP Streamable HTTP. Node.js/TypeScript, Azure SQL VECTOR(1536), Azure OpenAI `text-embedding-3-small`. Deployed on Azure Container Apps (scale-to-zero). See **[🧠 Open Brain](Open-Brain)**.
 - **Version Control:** GitHub (private repo: [fullera8/DrupalPOC](https://github.com/fullera8/DrupalPOC))
 
 **Planned (Post-POC):**
@@ -79,6 +81,7 @@ The developer has established enterprise patterns for the following components, 
 | **Day 3** | ✅ Complete | .NET API scaffolded + tested + pushed to GHCR. K8s manifests created (8 files). Deployed to AKS — all 4 pods running, ingress at `20.85.112.48`. |
 | **Day 4** | ✅ Complete | Drupal AKS MySQL site:install + setup scripts, Angular 21 scaffold (Material + Chart.js), Webform REST investigation + module install, Drupal JSON:API integration (Pluralsight-style module viewer), .NET API quiz scoring integration, GoPhish campaign seeding + Angular integration, Dashboard (4 KPI cards + 2 Chart.js charts), Docker build + GHCR push + AKS deploy (all 5 images live) |
 | **Day 5** | ✅ Complete | DDEV Mutagen sync troubleshooting + self-healing in start-dev.ps1, stop-dev.ps1 shutdown script, deploy-aks.ps1 AKS deployment pipeline, GoPhish local setup (Mailpit SMTP), nginx CSS aggregation fix (try_files), mailpit_link custom module (environment-aware), Architecture Semantic Enrichment, GoPhish SQLite → Azure MySQL migration, DDEV GoPhish sidecar, seed scripts (production → local pipeline) |
+| **Open Brain<br>Steps 1–12** | ✅ Complete | LLM-agnostic persistent memory MCP server. 11 build steps (scaffold → Bicep infra → SQL schema → embedding service → DB service → metadata extractor → 4 MCP tools → server entry → Azure deploy). Step 12: end-to-end integration testing via VS Code Copilot Agent mode — 12/12 tests passed (6 local + 6 remote), 2 infrastructure fixes (workspace root mcp.json, DDEV port mapping). See **[🧠 Open Brain](Open-Brain)** |
 
 See **[📋 Planning](Planning)** for detailed task tracking.
 
@@ -117,6 +120,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1
 | `http://localhost:4200` | Angular SPA (dashboard, modules, quiz, results) |
 | `http://localhost:5000/health` | .NET API health check |
 | `http://drupalpoc.ddev.site` | Drupal admin UI |
+| `http://localhost:3000/health` | Open Brain MCP server (health check) |
 | `https://localhost:3333` | GoPhish admin UI |
 | `http://localhost:8888` | GoPhish phishing listener |
 | `http://drupalpoc.ddev.site:8025` | Mailpit Web UI (captured GoPhish emails) |

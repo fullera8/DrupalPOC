@@ -21,6 +21,12 @@
 | - [x] | Resource Group | Existing | Already provisioned |
 | - [x] | Storage Account | Existing | Already provisioned |
 | - [x] | GHCR Access from AKS | Image pull secret | `ghcr-secret` created in `drupalpoc` namespace |
+| - [x] | Open Brain Resource Group | — | `rg-openbrain` in `eastus2` |
+| - [x] | Open Brain Container Registry | Basic | `openbrainacr.azurecr.io` in `eastus2` |
+| - [x] | Open Brain Container App + Env | Consumption (0–3 replicas) | `openbrain-aca` in `eastus2` (scale-to-zero) |
+| - [x] | Open Brain SQL Server + Database | Basic DTU 5 | `openbrain-sql` + `openbrain-db` in `centralus` (VECTOR 1536) |
+| - [x] | Open Brain Key Vault | Standard | `kvob-7kqm2qodhvyos` in `eastus2` |
+| - [x] | Azure OpenAI + Embedding Model | Standard | `ps-azopenai-eastus-afuller2` in `eastus` — `text-embedding-3-small` |
 
 ---
 
@@ -116,6 +122,31 @@
 - [ ] End-to-end walkthrough: trainee views module → takes quiz → views dashboard
 - [x] Verify all services accessible via AKS ingress URL
 - [ ] Take screenshots for wiki / pitch deck
+
+### Open Brain — MCP Server (Steps 1–12)
+
+See **[🧠 Open Brain](Open-Brain)** for full architecture and **[💬 Chat Log](ChatLog)** Steps 1–12 for implementation details.
+
+**Build (Steps 1–11):**
+- [x] Step 1: Project scaffold (17-file structure)
+- [x] Step 2: Bicep infrastructure (subscription-scoped, SQL + KV + ACA + RBAC)
+- [x] Step 3: SQL schema (3 tables, VECTOR(1536), stored proc)
+- [x] Step 4: Embedding service (Azure OpenAI text-embedding-3-small)
+- [x] Step 5: Database service (6 functions via tedious, parameterized queries)
+- [x] Step 6: Metadata extractor (deterministic rule engine, no LLM)
+- [x] Step 7: Four MCP tools (remember, recall, search, forget)
+- [x] Step 8: MCP server entry point (Express + StreamableHTTPServerTransport)
+- [x] Step 8.5: Pre-deployment fixes (7 surgical corrections)
+- [x] Step 9: Deploy embedding model to Azure OpenAI
+- [x] Step 10: Azure infrastructure provisioned (Bicep → 16 resources)
+- [x] Step 11: Build, test, deploy (TSC clean, Docker → ACR, ACA updated, health OK)
+
+**Integration Testing (Step 12):**
+- [x] Fix: Workspace root `.vscode/mcp.json` for VS Code MCP discovery
+- [x] Fix: `.ddev/docker-compose.openbrain.yaml` for port 3000 mapping
+- [x] Local tests: 6/6 passed (remember, recall, recall-no-match, search, forget, remember-untagged)
+- [x] Remote tests: 6/6 passed (same test suite against ACA FQDN)
+- [x] Verified shared database (sequential IDs across servers: local 3–4, remote 5–6)
 
 ---
 

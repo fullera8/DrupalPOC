@@ -115,6 +115,7 @@ To support fine-grained cost scaling and decouple logical roles, the architectur
 | **Specialized Tooling**<br>*(Simulation Layer)* | **GoPhish**<br>**YouTube/Vimeo** | AKS (1 replica)<br>External | Azure MySQL (gophish DB) / MariaDB (local dev)<br>— | **POC:** Basic campaign click tracking via REST API; embedded video training.<br>**Post-POC:** SMTP integration, scheduled campaigns, scalable Azure Blob Storage. |
 | **Persistence Layer**<br>*(Database Tiers)* | **Azure SQL Server**<br>**Azure MySQL** | Azure Managed | — | **POC:** Basic DTU 5 for SQL, Burstable B1ms for MySQL.<br>**Post-POC:** Independent scaling based on read/write profiles (e.g. heavy SQL reads vs light MySQL writes). |
 | **Infrastructure**<br>*(Hosting Layer)* | **AKS & GHCR**<br>**Azure CLI / DDEV** | Azure / GitHub<br>Local Environment | — | **POC:** Nginx ingress, sidecar pod setups, CI/CD pipeline, local Mailhog.<br>**Post-POC:** Auto-scaling node pools, WAF, Redis caching setup. |
+| **Developer Tooling**<br>*(AI Memory Layer)* | **Open Brain MCP Server** | Azure Container Apps (0–3 replicas) | Azure SQL `openbrain-db` (VECTOR 1536) + Azure OpenAI | **POC:** 4 MCP tools (remember, recall, search, forget). Persistent memory for Copilot agents. Deterministic metadata tagging. Scale-to-zero.<br>**Post-POC:** Multi-brain isolation, conversation capture, wiki import pipeline. See **[🧠 Open Brain](Open-Brain)**. |
 
 > **Note:** Webform 6.3.x-dev is the only branch compatible with Drupal 11 (stable releases only support D10). Locked at commit `13ce2a6`.
 
@@ -236,6 +237,12 @@ All resources provisioned on **Day 1 (Mar 4, 2026)**. See **[📋 Planning](Plan
 | **Azure SQL Server** | `drupalpoc-sql` | centralus | Basic / DTU 5 (~$5/mo) | `***REDACTED_SQL_HOST***` · DB: `drupalpoc` |
 | **Azure MySQL** | `drupalpoc-mysql` | centralus | Burstable B1ms (~$6/mo) | `***REDACTED_MYSQL_HOST***` · DB: `drupal` |
 | **Storage Account** | (existing) | eastus2 | — | AKS diagnostics |
+| **Open Brain RG** | `rg-openbrain` | eastus2 | — | All Open Brain resources |
+| **Open Brain ACR** | `openbrainacr` | eastus2 | Basic | Container images for MCP server |
+| **Open Brain ACA** | `openbrain-aca` | eastus2 | Consumption (0–3 replicas) | `openbrain-aca.politehill-8ea585d8.eastus2.azurecontainerapps.io` |
+| **Open Brain SQL** | `openbrain-sql` / `openbrain-db` | centralus | Basic DTU 5 | Memory + vector storage |
+| **Open Brain Key Vault** | `kvob-7kqm2qodhvyos` | eastus2 | — | Secrets (post-POC migration target) |
+| **Azure OpenAI** | `ps-azopenai-eastus-afuller2` | eastus | Standard | `text-embedding-3-small` (1536-dim) |
 
 > **Region note:** SQL and MySQL are in `centralus` because `eastus2` had capacity constraints for SQL Server provisioning during Day 1. The resource group location (`eastus2`) is a logical designation only — resources can be in any region.
 

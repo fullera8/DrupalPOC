@@ -4,7 +4,7 @@
   "description": "Open Brain — LLM-agnostic MCP knowledge layer for vector-backed memory",
   "main": "dist/server/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp src/server/metadata/rules.config.json dist/server/metadata/rules.config.json",
     "start": "node dist/server/index.js",
     "dev": "tsc --watch"
   },
