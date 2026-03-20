@@ -28,6 +28,7 @@ spec:
       containers:
         - name: angular
           image: ghcr.io/fullera8/drupalpoc-angular:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
           livenessProbe:

@@ -55,6 +55,7 @@ spec:
       containers:
         - name: gophish
           image: ghcr.io/fullera8/drupalpoc-gophish:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3333
               name: admin

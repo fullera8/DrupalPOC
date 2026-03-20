@@ -36,6 +36,7 @@ spec:
         # --- PHP-FPM container (Drupal application) ---
         - name: drupal
           image: ghcr.io/fullera8/drupalpoc-drupal:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 9000
           env:
@@ -58,6 +59,7 @@ spec:
         # --- Nginx sidecar (reverse proxy for PHP-FPM) ---
         - name: nginx
           image: ghcr.io/fullera8/drupalpoc-drupal-nginx:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
           volumeMounts:

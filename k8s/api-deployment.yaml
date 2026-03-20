@@ -28,6 +28,7 @@ spec:
       containers:
         - name: api
           image: ghcr.io/fullera8/drupalpoc-api:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
