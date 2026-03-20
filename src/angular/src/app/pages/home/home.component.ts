@@ -25,7 +25,7 @@ import { GophishService, Campaign } from '../../services/gophish.service';
       <div class="hero-overlay">
         <div class="hero-content">
           <img src="images/UTSA_logo.png" alt="UTSA Logo" class="hero-logo" />
-          <h1>Protect Our Campus — Security Awareness Starts Here</h1>
+          <h1>Protect Our Campus : Security Awareness Starts Here</h1>
           <p class="hero-subtitle">
             Empowering UT San Antonio faculty, staff, and students with the skills
             to identify and prevent cybersecurity threats.
@@ -137,9 +137,8 @@ import { GophishService, Campaign } from '../../services/gophish.service';
       text-align: center;
     }
     .hero-logo {
-      width: 120px;
-      margin-bottom: 24px;
-      filter: brightness(0) invert(1);
+      width: 240px;
+      margin-bottom: 12px;
     }
     .hero h1 {
       color: #fff;

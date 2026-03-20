@@ -5089,3 +5089,93 @@ These items in Planning.md are **intentionally deferred** and are NOT documentat
 - All post-POC backlog items (SSO, LTI 1.3, multi-tenancy, etc.)
 
 **[LLM_CONTEXT: As of Mar 20, 2026, all documentation is consistent and cross-referenced. README.md Wiki table now includes Page Functionality (8 entries total). All six Angular pages are documented in pagefunctionality.md with UTSA brand details. The Architecture.md Mermaid diagram arrow from Angular → GoPhish represents the logical data flow — physically, Angular calls the .NET API which proxies to GoPhish (the API key stays server-side). Budget.md TODO items are post-POC analysis tasks. No documentation gaps remain except the 3 intentionally deferred Planning.md items (sample data seeding, walkthrough, screenshots).]**
+
+---
+
+## AKS Deployment Fixes & UI Polish (Mar 20, 2026)
+
+**[SECTION_METADATA: CONCEPTS=AKS,Kubernetes,imagePullPolicy,Docker,Nginx,Angular_Budget,UTSA_Branding | DIFFICULTY=Intermediate | RESPONDS_TO: Debugging_Troubleshooting, Implementation_How-To]**
+
+This section covers three deployment/build issues discovered during the first AKS deploy after the visual overhaul, plus two UI polish fixes.
+
+### Issue 1: Angular Production Bundle Budget Exceeded
+
+**Symptom:** `deploy-aks.ps1 -Only angular` failed during Docker build:
+```
+bundle initial exceeded maximum budget. Budget 1.00 MB was not met by 7.27 kB with a total of 1.01 MB.
+```
+
+**Root Cause:** The `angular.json` production budgets were Angular CLI scaffold defaults — never tuned for the app. After adding Angular Material, Chart.js, 6 UTSA-branded pages with inline styles, and service logic, the bundle naturally grew to 1.01 MB.
+
+**Fix:** Updated `src/angular/angular.json` production budgets:
+
+| Budget | Before (scaffold default) | After |
+| :--- | :--- | :--- |
+| `initial` warning | 500 kB | 2 MB |
+| `initial` error | 1 MB | 5 MB |
+| `anyComponentStyle` warning | 4 kB | 16 kB |
+| `anyComponentStyle` error | 8 kB | 100 kB |
+
+**Context:** 1.01 MB raw / 228 kB gzipped is healthy for an Angular Material app with charts. Production apps typically land 1–3 MB. The 5 MB error ceiling gives room for post-POC growth (auth, reporting, more pages).
+
+**[LLM_CONTEXT: The Angular budget was never the developer's choice — it was a scaffold default. If future builds hit the 2 MB warning, that's informational only. Only action needed if the 5 MB error is hit, which would indicate a dependency problem (e.g., accidentally bundling a huge library).]**
+
+### Issue 2: AKS Pods Serving Stale Docker Images
+
+**Symptom:** After a successful `deploy-aks.ps1 -Only angular` (build, push to GHCR, rollout restart), visiting `http://20.85.112.48/` still showed the old app UI. Browser cache cleared — still old.
+
+**Diagnosis (step by step):**
+1. `git diff --name-only HEAD` → clean working tree, all changes committed and pushed.
+2. Checked the pushed image digest: `sha256:88a0bc02...`
+3. Checked the running pod's image digest: `sha256:aa2db601...` → **mismatch**
+4. Checked `imagePullPolicy`: **`IfNotPresent`** (Kubernetes default when no policy is specified)
+
+**Root Cause:** None of the 4 K8s deployment YAMLs specified `imagePullPolicy`. Kubernetes defaults to `IfNotPresent` for `:latest` tags. When `rollout restart` creates a new pod, the AKS node sees it already has a local image tagged `:latest` and **skips the pull entirely**. The newly pushed image in GHCR is never fetched.
+
+**Fix:** Added `imagePullPolicy: Always` to every container in all 4 deployment YAMLs:
+
+| File | Containers Updated |
+| :--- | :--- |
+| `k8s/angular-deployment.yaml` | `angular` |
+| `k8s/api-deployment.yaml` | `api` |
+| `k8s/drupal-deployment.yaml` | `drupal`, `nginx` (sidecar) |
+| `k8s/gophish-deployment.yaml` | `gophish` |
+
+Applied the updated manifest with `kubectl apply -f` before re-running the deploy script so the new policy took effect.
+
+**Verification:** After redeploy, the running pod's image digest matched the pushed digest and `pullPolicy=Always` was confirmed.
+
+**[LLM_CONTEXT: imagePullPolicy: Always is now set on ALL containers across all 4 K8s deployments. Future rollout restarts will always pull from GHCR. This is a permanent fix — do not remove or change to IfNotPresent. The deploy script uses `kubectl rollout restart` which triggers a new pod creation; with Always policy, K8s fetches the latest image from GHCR on every restart.]**
+
+### Issue 3: Browser Caching Stale `index.html`
+
+**Context:** Even with the correct image running in AKS, browsers could still serve a stale `index.html` from cache. Angular's production build hashes JS/CSS filenames (e.g., `chunk-W3T4ED54.js`), but the `index.html` entry point itself was being cached by the browser.
+
+**Fix:** Added `Cache-Control: no-cache, no-store, must-revalidate` to the SPA fallback route in `docker/angular/nginx.conf`:
+
+```nginx
+location / {
+    try_files $uri $uri/ /index.html;
+    add_header Cache-Control "no-cache, no-store, must-revalidate";
+}
+```
+
+The static asset cache (`location ~* \.(js|css|png|...)$` with `expires 1y`) remains unchanged — hashed filenames already handle cache-busting for assets.
+
+### Issue 4: Home Page Logo Appearing as White Square
+
+**Symptom:** The UTSA logo in the Home page hero section rendered as a solid white rectangle. Inspecting the element showed the correct `src="images/UTSA_logo.png"` path, and opening the image in a new tab displayed it correctly.
+
+**Root Cause:** The CSS `filter: brightness(0) invert(1)` was designed to turn a colored logo white for dark-background visibility. However, the UTSA logo PNG has a non-transparent background. The filter first makes every pixel black (`brightness(0)`), then inverts to white (`invert(1)`) — turning the entire image into a solid white rectangle.
+
+**Fix:** Removed the CSS filter from `.hero-logo` in `home.component.ts`. The logo now renders as-is against the dark hero overlay.
+
+### Issue 5: UTSA Logo in Toolbar
+
+**Change:** Added the UTSA logo to the application toolbar alongside the title text.
+
+**Files Modified:**
+- `src/angular/src/app/app.html` — Added `<img src="images/UTSA_logo.png" alt="UTSA" class="toolbar-logo" />` between the hamburger menu button and title text. Title shortened from "TSUS Security Training" to "Security Training".
+- `src/angular/src/app/app.scss` — Added `.toolbar-logo { height: 32px; margin-right: 10px; }`.
+
+**[LLM_CONTEXT: The toolbar now shows the UTSA logo (32px height) + "Security Training" text. The Home page hero logo renders without any CSS filter. Both changes are purely visual — no routing, data flow, or component logic changes. The deploy script (`deploy-aks.ps1 -Only angular`) handles building and deploying these changes.]**
