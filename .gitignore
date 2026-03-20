@@ -68,3 +68,5 @@ Thumbs.db
 **/appsettings.Development.json
 scripts/GOPHISH_MYSQL_UPGRADE.md
 scripts/seed_gophish_local.ps1
+LandingPage_CopilotPrompt.md
+/Design/

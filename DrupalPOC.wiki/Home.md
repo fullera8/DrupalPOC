@@ -82,6 +82,7 @@ The developer has established enterprise patterns for the following components, 
 | **Day 4** | ✅ Complete | Drupal AKS MySQL site:install + setup scripts, Angular 21 scaffold (Material + Chart.js), Webform REST investigation + module install, Drupal JSON:API integration (Pluralsight-style module viewer), .NET API quiz scoring integration, GoPhish campaign seeding + Angular integration, Dashboard (4 KPI cards + 2 Chart.js charts), Docker build + GHCR push + AKS deploy (all 5 images live) |
 | **Day 5** | ✅ Complete | DDEV Mutagen sync troubleshooting + self-healing in start-dev.ps1, stop-dev.ps1 shutdown script, deploy-aks.ps1 AKS deployment pipeline, GoPhish local setup (Mailpit SMTP), nginx CSS aggregation fix (try_files), mailpit_link custom module (environment-aware), Architecture Semantic Enrichment, GoPhish SQLite → Azure MySQL migration, DDEV GoPhish sidecar, seed scripts (production → local pipeline) |
 | **Open Brain<br>Steps 1–12** | ✅ Complete | LLM-agnostic persistent memory MCP server. 11 build steps (scaffold → Bicep infra → SQL schema → embedding service → DB service → metadata extractor → 4 MCP tools → server entry → Azure deploy). Step 12: end-to-end integration testing via VS Code Copilot Agent mode — 12/12 tests passed (6 local + 6 remote), 2 infrastructure fixes (workspace root mcp.json, DDEV port mapping). See **[🧠 Open Brain](Open-Brain)** |
+| **Landing Page** | ✅ Complete | UTSA-branded marketing-quality landing page (`HomeComponent`). Hero section with campus backdrop, value proposition cards, training pathway tiles, live KPI row (ApiService + GophishService), footer. Default route changed from `/dashboard` to `/home`. Montserrat font added for headlines. Sidenav updated to 5 items. |
 
 See **[📋 Planning](Planning)** for detailed task tracking.
 
@@ -117,7 +118,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\start-dev.ps1
 
 | URL | Service |
 | :--- | :--- |
-| `http://localhost:4200` | Angular SPA (dashboard, modules, quiz, results) |
+| `http://localhost:4200` | Angular SPA (home, dashboard, modules, quiz, results) |
 | `http://localhost:5000/health` | .NET API health check |
 | `http://drupalpoc.ddev.site` | Drupal admin UI |
 | `http://localhost:3000/health` | Open Brain MCP server (health check) |

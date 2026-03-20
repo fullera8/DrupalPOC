@@ -123,6 +123,20 @@
 - [x] Verify all services accessible via AKS ingress URL
 - [ ] Take screenshots for wiki / pitch deck
 
+### Landing Page — HomeComponent (Mar 20, 2026) ✅
+
+- [x] Create `HomeComponent` standalone component with inline template/styles
+- [x] Copy UTSA brand assets to `src/angular/public/images/` (backdrop, logo)
+- [x] Hero section with campus backdrop, gradient overlay, CTAs
+- [x] Value proposition cards (4 cards on Limestone background)
+- [x] Training pathway tiles (4 clickable `mat-card` links to `/modules` and `/results`)
+- [x] Live KPI row (quiz attempts, pass rate, campaigns, click rate via ApiService + GophishService)
+- [x] Footer with placeholder links and UTSA attribution
+- [x] Update sidenav: add Home as first nav item (5 total)
+- [x] Change default route from `/dashboard` to `/home`
+- [x] Add Montserrat font (Google Fonts, wght 600/700/800) for headlines
+- [x] Angular build verified (zero errors)
+
 ### Open Brain — MCP Server (Steps 1–12)
 
 See **[🧠 Open Brain](Open-Brain)** for full architecture and **[💬 Chat Log](ChatLog)** Steps 1–12 for implementation details.

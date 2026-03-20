@@ -4538,3 +4538,144 @@ _No source code modifications were required._ All 4 MCP tools worked correctly w
 4. **Integration testing is not redundant with unit/curl testing.** Steps 1–11 tested tools via `curl` and `test-mcp.sh`. Step 12 tested the real workflow: VS Code → Copilot → MCP protocol handshake → tool call → Azure SQL → response. The two infrastructure issues (mcp.json location, port mapping) were invisible to curl-based tests because curl bypasses VS Code discovery entirely.
 
 **[LLM_CONTEXT: Step 12 completed: End-to-end integration testing of all 4 Open Brain MCP tools via native VS Code Copilot Agent mode. 12 tests executed (6 local + 6 remote), all passed. Two infrastructure fixes applied before testing: (1) workspace root .vscode/mcp.json created for VS Code MCP discovery, (2) .ddev/docker-compose.openbrain.yaml created to expose port 3000 from DDEV container. No source code changes needed. Local memory IDs: 3-4. Remote memory IDs: 5-6. Sequential IDs confirm shared Azure SQL database (stateless server architecture). Both servers returned identical similarity scores (0.509) for the same query, confirming deterministic embedding behavior. Steps 1-12 complete. Open Brain is fully deployed, tested, and integrated with VS Code Copilot.]**
+
+---
+
+## Landing Page — HomeComponent (Mar 20, 2026)
+**[SECTION_METADATA: CONCEPTS=Angular,Landing_Page,UTSA_Branding,KPI,Live_Data,Routing,Sidenav,Google_Fonts,Marketing | DIFFICULTY=Intermediate | TOOLS=Angular_CLI,TypeScript,Angular_Material | RESPONDS_TO: Implementation_How-To, Definition_Explanation]**
+
+### Overview
+**[DIFFICULTY: Beginner-Intermediate] [CONCEPTS: Angular, Landing_Page, UTSA_Branding]**
+
+Created a marketing-quality landing page (`HomeComponent`) as the new default route (`/home`). The page is branded with UTSA colors and typography, features five visual sections, and pulls live KPI data from the .NET API and GoPhish proxy — reusing the same service pattern as `DashboardComponent`.
+
+**Motivation:** The original app opened directly to the Dashboard, which is an internal analytics view. A landing page provides a polished first impression suitable for a POC pitch demo — explaining the platform's purpose, value, and capabilities before the user navigates into the application.
+
+### Files Created
+
+| File | Purpose |
+| :--- | :--- |
+| `src/angular/src/app/pages/home/home.component.ts` | Standalone component with inline template/styles. 5 sections: hero, value proposition cards, training pathways, live KPI row, footer. |
+| `src/angular/public/images/UTSA_Backdrop.png` | Campus backdrop image for hero section (copied from `Design/`) |
+| `src/angular/public/images/UTSA_logo.png` | UTSA logo for hero section (copied from `Design/`) |
+
+### Files Modified
+
+| File | Change |
+| :--- | :--- |
+| `src/angular/src/app/app.routes.ts` | Added `HomeComponent` import, `/home` route, changed default redirect from `'dashboard'` to `'home'` |
+| `src/angular/src/app/app.html` | Added "Home" nav item (icon: `home`, route: `/home`) as first sidenav entry |
+| `src/angular/src/index.html` | Added Montserrat font import (`wght@600;700;800`) to existing Google Fonts `<link>` |
+
+### UTSA Brand Colors
+
+| Token | Hex | Usage in Home |
+| :--- | :--- | :--- |
+| **UTSA Orange** | `#F15A22` | CTA buttons, value card icons, pathway "Explore →" links |
+| **Midnight Navy** | `#032044` | Section titles, KPI section background, pathway card icons |
+| **Athletics Navy** | `#0C2340` | Footer background |
+| **Accessible Orange** | `#D3430D` | CTA hover state (WCAG AA-compliant) |
+| **Limestone** | `#F8F4F1` | Value proposition section background |
+| **Concrete** | `#EBE6E2` | Pathway card border color |
+
+### Font Strategy
+
+Added **Montserrat** (Google Fonts) for headlines. **Roboto** (already present) used for body text.
+
+```html
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800&family=Roboto:wght@300;400;500&display=swap" rel="stylesheet" />
+```
+
+Component-level CSS applies:
+- `h1, h2, h3, .section-title` → `font-family: 'Montserrat', sans-serif;`
+- `p, a, span, div, .kpi-label` → `font-family: 'Roboto', sans-serif;`
+
+### Landing Page Sections (Template Structure)
+
+| # | Section | Background | Key Content |
+| :--- | :--- | :--- | :--- |
+| 1 | **Hero** | `UTSA_Backdrop.png` + dark gradient overlay | UTSA logo, headline, subtitle, 2 CTA buttons |
+| 2 | **Value Proposition** | Limestone `#F8F4F1` | 4 `mat-card` elements in CSS Grid (phishing, simulation, analytics, academic) |
+| 3 | **Training Pathways** | White | 4 clickable `mat-card` tiles with hover effects, routed to `/modules` or `/results` |
+| 4 | **KPI Row** | Navy `#032044` | Live data: quiz attempts, pass rate, campaigns, click rate |
+| 5 | **Footer** | Athletics Navy `#0C2340` | 4 placeholder links, attribution, copyright |
+
+### KPI Data Loading (Same Pattern as DashboardComponent)
+
+```typescript
+// Services imported from same paths as dashboard
+import { ApiService, SimulationResult } from '../../services/api.service';
+import { GophishService, Campaign } from '../../services/gophish.service';
+
+// Parallel loading with dataReady counter
+ngOnInit(): void {
+  this.apiService.getScores().subscribe({
+    next: (data) => { this.quizResults = data; this.onDataLoaded(); },
+    error: () => this.onDataLoaded(),
+  });
+  this.gophishService.getCampaigns().subscribe({
+    next: (data) => { this.campaigns = data; this.onDataLoaded(); },
+    error: () => this.onDataLoaded(),
+  });
+}
+
+// KPI computation identical to DashboardComponent
+private computeKPIs(): void {
+  this.totalQuizAttempts = this.quizResults.length;
+  const passed = this.quizResults.filter(r => r.score >= 80).length;
+  this.quizPassRate = Math.round((passed / this.quizResults.length) * 100);
+  this.totalCampaigns = this.campaigns.length;
+  const allResults = this.campaigns.flatMap(c => c.results || []);
+  const clicked = allResults.filter(r =>
+    r.status === 'Clicked Link' || r.status === 'Submitted Data'
+  ).length;
+  this.phishClickRate = Math.round((clicked / allResults.length) * 100);
+}
+```
+
+### Routing Changes
+
+**Before:**
+```typescript
+{ path: '', redirectTo: 'dashboard', pathMatch: 'full' },
+```
+
+**After:**
+```typescript
+{ path: '', redirectTo: 'home', pathMatch: 'full' },
+{ path: 'home', component: HomeComponent },
+```
+
+All existing routes (`/dashboard`, `/modules`, `/modules/:id`, `/quiz`, `/results`) are unchanged.
+
+### Sidenav Update
+
+Added "Home" as the first navigation item in `app.html`:
+
+```html
+<a mat-list-item routerLink="/home" routerLinkActive="active">
+  <mat-icon matListItemIcon>home</mat-icon>
+  <span matListItemTitle>Home</span>
+</a>
+```
+
+Sidenav now has 5 items: Home, Dashboard, Training Modules, Quiz, Simulation Results.
+
+### Responsive Design
+
+Three breakpoints:
+- **Desktop (> 768px):** Full grids, hero at `min-height: 500px`, text at 2.6rem
+- **Tablet (≤ 768px):** Hero text scales to 1.8rem, grids collapse to fewer columns
+- **Mobile (≤ 480px):** Hero text at 1.5rem, logo at 80px, reduced padding
+
+### Known Items for Revision
+
+| Item | Issue | Suggested Fix |
+| :--- | :--- | :--- |
+| Content area padding | App shell `.content-area` adds 24px padding around the full-bleed hero | Conditionally remove padding for `/home` route, or override in component |
+| Hero image format | Source is `.png` — larger file size than needed | Convert to `.jpg` or `.webp` for production |
+| UTSA logo filter | `filter: brightness(0) invert(1)` inverts to white — may need tuning | Verify against actual logo asset |
+| Pathway tile routes | All tiles currently link to `/modules` or `/results` | Wire up category-specific deep links post-POC |
+| Footer links | All point to `javascript:void(0)` | Connect to actual pages/modals post-POC |
+
+**[LLM_CONTEXT: The Home page (`/home`) is now the default landing page. The root path `/` redirects to `/home` (previously `/dashboard`). The sidenav has 5 items (Home, Dashboard, Training Modules, Quiz, Simulation Results). The KPI section reuses the exact same `ApiService` and `GophishService` pattern as `DashboardComponent` — if KPI logic changes, update both components. UTSA brand assets are in `src/angular/public/images/` (served as `/images/` at runtime). Montserrat font was added to `index.html`. All existing routes and components are unmodified.]**

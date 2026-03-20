@@ -144,6 +144,7 @@ For the full architecture diagram (Mermaid), service inventory, build-vs-borrow 
 | **Day 4** | ✅ Complete | Angular 21 scaffold (Material + Chart.js), Drupal JSON:API integration, .NET API quiz scoring, GoPhish campaign seeding, Dashboard (4 KPI cards + 2 Chart.js charts), Docker build + GHCR push + AKS deploy (all 5 images live) |
 | **Day 5** | ✅ Complete | start-dev.ps1 / stop-dev.ps1 / deploy-aks.ps1 scripts, GoPhish local setup (Mailpit SMTP), GoPhish SQLite → Azure MySQL migration, DDEV GoPhish sidecar, Architecture Semantic Enrichment |
 | **Open Brain** | ✅ Complete | LLM-agnostic persistent memory MCP server — 12 steps from scaffold to integration testing. 12/12 end-to-end tests passed (6 local + 6 remote). See [Open Brain wiki](DrupalPOC.wiki/Open-Brain.md). |
+| **Landing Page** | ✅ Complete | UTSA-branded marketing-quality landing page (`HomeComponent`). Hero with campus backdrop, value proposition cards, training pathway tiles, live KPI row, footer. Default route → `/home`. Montserrat font, 5 sidenav items. |
 
 See [Planning](DrupalPOC.wiki/Planning.md) for detailed task tracking.
 
@@ -316,7 +317,7 @@ This script handles everything in order:
 
 | URL | Service |
 | :--- | :--- |
-| `http://localhost:4200` | Angular SPA (dashboard, modules, quiz, results) |
+| `http://localhost:4200` | Angular SPA (home, dashboard, modules, quiz, results) |
 | `http://localhost:5000/health` | .NET API health check |
 | `http://localhost:3000/health` | Open Brain MCP server (health check) |
 | `http://drupalpoc.ddev.site` | Drupal admin UI |
