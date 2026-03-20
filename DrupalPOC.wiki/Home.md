@@ -4,6 +4,8 @@
 
 ## Documentation Architecture
 
+> **🌐 Live Demo:** [http://achramlabs-security-training.eastus2.cloudapp.azure.com](http://achramlabs-security-training.eastus2.cloudapp.azure.com)
+
 This wiki uses a **tiered documentation system** optimized for LLM-assisted development. See the **[📖 Metadata Legend](Metadata-Legend)** for all tag definitions, interpretation rules, and query routing.
 
 ### Architecture & Planning
@@ -37,7 +39,7 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 - **CI/CD:** GitHub Actions → GHCR → AKS
 - **.NET API (Day 3–4):** Minimal APIs (.NET SDK 8.0.418, EF Core 8.0.24) — 6 endpoints: GET /health, POST /api/results, GET /api/scores, plus 3 GoPhish proxy endpoints (GET /api/campaigns, GET /api/campaigns/{id}, GET /api/campaigns/{id}/results). The .NET API proxies GoPhish so the API key stays server-side — Angular never talks to GoPhish directly.
 - **K8s Manifests (Day 3):** 8 files in `k8s/` — namespace, secrets, configmaps, 4 deployments + services, ingress
-- **AKS Deployment (Day 3):** All 4 pods running in `drupalpoc` namespace, nginx ingress at `20.85.112.48`
+- **AKS Deployment (Day 3):** All 4 pods running in `drupalpoc` namespace, nginx ingress at `20.85.112.48`. Public DNS: `achramlabs-security-training.eastus2.cloudapp.azure.com`
 - **Webform REST (Day 4):** `drupal/webform_rest` 4.2.0 — JSON:API cannot serve webform quiz structure (treats webforms as config entities, access-denied). `webform_rest` provides dedicated REST endpoints (`/webform_rest/{id}/fields?_format=json`) for Angular to render quizzes authored in Drupal.
 - **Container Images (Day 2–4):** `ghcr.io/fullera8/drupalpoc-angular`, `drupalpoc-api` (.NET 8), `drupalpoc-drupal` (PHP 8.4-FPM), `drupalpoc-drupal-nginx`, `drupalpoc-gophish` — all 5 images pushed to GHCR
 - **Local Development:** DDEV v1.25.0 (PHP 8.4, MariaDB 11.8, Drush 13.7.1)

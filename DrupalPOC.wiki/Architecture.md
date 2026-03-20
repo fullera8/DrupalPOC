@@ -129,9 +129,7 @@ The Angular SPA applies a cohesive UTSA-branded design system to trainee-facing 
 - **Quiz** (`QuizComponent`) — Header bar, question cards with number badges, pass/fail banners, buttons
 - **Modules** (`ModulesComponent`) — Pluralsight-inspired split layout: branded header bar, hero placeholder panel (Athletics Navy + large orange play icon), dark sidebar accordion with numbered orange badges, collapsed-by-default secondary sections
 - **Module Detail** (`ModuleDetailComponent`) — Branded header with orange back link, Limestone content area, Athletics Navy video frame (12px radius, shadow), white description card with "About This Module" title, Concrete-styled metadata chips
-
-**Deferred (Post-POC):**
-- Simulation Results (`ResultsComponent`) — Tab group, tables, campaign cards
+- **Results** (`ResultsComponent`) — Navy header block with tabbed KPI + data tables, orange active-tab indicator, campaign cards with 5-stat grids, branded empty/error/loading states
 
 **Design Tokens:**
 
@@ -147,7 +145,7 @@ The Angular SPA applies a cohesive UTSA-branded design system to trainee-facing 
 
 **Fonts:** Montserrat (700 headlines, 600 titles, 800 hero) + Roboto (300 subtitles, 400 body, 500 emphasis). Loaded from Google Fonts in `index.html`.
 
-**[LLM_CONTEXT: If UTSA brand colors or fonts change, update all five branded components (HomeComponent, DashboardComponent, QuizComponent, ModulesComponent, ModuleDetailComponent) and the Chart.js color arrays in DashboardComponent. The design system uses `margin: -24px` for edge-to-edge layouts — this negates the app shell's content-area padding. The Modules page uses a unique Pluralsight-inspired split layout pattern (hero panel + dark sidebar) not shared by other pages.]**
+**[LLM_CONTEXT: If UTSA brand colors or fonts change, update all six branded components (HomeComponent, DashboardComponent, QuizComponent, ModulesComponent, ModuleDetailComponent, ResultsComponent) and the Chart.js color arrays in DashboardComponent. The design system uses `margin: -24px` for edge-to-edge layouts — this negates the app shell's content-area padding. The Modules page uses a unique Pluralsight-inspired split layout pattern (hero panel + dark sidebar) not shared by other pages.]**
 
 ### Repository Structure
 
@@ -289,6 +287,8 @@ Deployed on **Mar 7, 2026** via `ddev exec -s azure-cli kubectl` commands. All m
 | **ConfigMaps** | `drupal-nginx-conf` (overrides `fastcgi_pass` to `127.0.0.1:9000` for sidecar), `angular-placeholder` (HTML page) |
 | **Ingress Controller** | nginx ingress controller v1.12.1 — `ingress-nginx` namespace |
 | **Ingress External IP** | `20.85.112.48` |
+| **Public DNS** | `achramlabs-security-training.eastus2.cloudapp.azure.com` |
+| **Image Pull Policy** | `Always` (all containers, all 4 deployments) |
 
 **Pod Status:**
 | Pod | Ready | Containers |

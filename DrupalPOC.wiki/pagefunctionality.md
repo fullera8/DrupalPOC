@@ -10,10 +10,10 @@ This document provides a UI/UX and technical overview of each page in the Angula
 
 **[SECTION_METADATA: CONCEPTS=Angular_Material,Navigation,Routing | DIFFICULTY=Beginner]**
 
-The app uses a **Material Design** shell (`mat-sidenav-container`) with a persistent side-navigation drawer and a top toolbar branded "TSUS Security Training."
+The app uses a **Material Design** shell (`mat-sidenav-container`) with a persistent side-navigation drawer and a top toolbar branded with the UTSA logo and "Security Training" title.
 
 **Layout:**
-- **Toolbar** — Fixed top bar with a hamburger toggle and application title.
+- **Toolbar** — Fixed top bar with a hamburger toggle, UTSA logo (32px), and application title "Security Training".
 - **Sidenav** — Always-open side drawer with five navigation links (icon + label):
 
 | Nav Item | Route | Icon | Component |
@@ -45,7 +45,7 @@ The Home page is the marketing-quality landing page and first impression of the 
 The page has five sections stacked vertically:
 
 **1. Hero Section** — Full-width campus backdrop image (`UTSA_Backdrop.png`) with a dark gradient overlay (`rgba(3, 32, 68, 0.72)` → `rgba(3, 32, 68, 0.88)`). Content centered:
-- UTSA logo (inverted white via CSS filter)
+- UTSA logo (rendered as-is against dark hero overlay)
 - Headline: *"Protect Our Campus — Security Awareness Starts Here"* — Montserrat 700, white, 2.6rem
 - Subtitle: *"Empowering UT San Antonio faculty, staff, and students..."* — Roboto 300, white
 - Two CTA buttons:

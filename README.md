@@ -6,6 +6,8 @@ Modeled after commercial products like **KnowBe4** and **Proofpoint Security Awa
 
 > **Status:** Proof-of-concept (POC) — March 2026 — **Day 5 + Open Brain complete, deployed to AKS & Azure Container Apps**
 
+> **🌐 Live Demo:** [http://achramlabs-security-training.eastus2.cloudapp.azure.com](http://achramlabs-security-training.eastus2.cloudapp.azure.com)
+
 ---
 
 ## Table of Contents
@@ -17,6 +19,7 @@ Modeled after commercial products like **KnowBe4** and **Proofpoint Security Awa
 - [Repository Structure](#repository-structure)
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
+- [Live Demo](#live-demo)
 - [Deployment](#deployment)
 - [Wiki & Documentation](#wiki--documentation)
 - [License](#license)
@@ -373,26 +376,36 @@ powershell -ExecutionPolicy Bypass -File .\scripts\deploy-aks.ps1
 
 ---
 
+## Live Demo
+
+> **🌐 [http://achramlabs-security-training.eastus2.cloudapp.azure.com](http://achramlabs-security-training.eastus2.cloudapp.azure.com)**
+
+The fully branded UTSA Security Awareness Training Platform is live on Azure Kubernetes Service. All six Angular pages (Home, Dashboard, Modules, Module Detail, Quiz, Results) are deployed with the UTSA design system, live data from Drupal JSON:API, .NET API scoring, and GoPhish campaign tracking.
+
+---
+
 ## Deployment
 
-The POC is **deployed and running** on Azure Kubernetes Service (AKS) as of Day 3 (Mar 7, 2026).
+The POC is **deployed and running** on Azure Kubernetes Service (AKS) as of Day 3 (Mar 7, 2026). Public DNS configured Mar 20, 2026.
 
 ### Live AKS Deployment
 
 | Resource | Value |
 | :--- | :--- |
+| **Public DNS** | `achramlabs-security-training.eastus2.cloudapp.azure.com` |
 | **Ingress External IP** | `20.85.112.48` |
 | **Namespace** | `drupalpoc` |
 | **Ingress Controller** | nginx ingress controller v1.12.1 |
 | **Pods Running** | 4 (angular, api, drupal [sidecar: 2/2], gophish) |
+| **Image Pull Policy** | `Always` (all containers) |
 
 **Endpoints:**
 | URL | Service |
 | :--- | :--- |
-| `http://20.85.112.48/health` | .NET API health check |
-| `http://20.85.112.48/api/scores` | .NET API scores |
-| `http://20.85.112.48/` | Angular placeholder |
-| `http://20.85.112.48/jsonapi` | Drupal JSON:API (pending Drupal install) |
+| `http://achramlabs-security-training.eastus2.cloudapp.azure.com/` | Angular SPA (UTSA-branded) |
+| `http://achramlabs-security-training.eastus2.cloudapp.azure.com/health` | .NET API health check |
+| `http://achramlabs-security-training.eastus2.cloudapp.azure.com/api/scores` | .NET API scores |
+| `http://achramlabs-security-training.eastus2.cloudapp.azure.com/jsonapi` | Drupal JSON:API |
 
 ### Open Brain (Azure Container Apps)
 

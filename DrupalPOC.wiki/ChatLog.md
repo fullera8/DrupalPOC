@@ -5179,3 +5179,69 @@ The static asset cache (`location ~* \.(js|css|png|...)$` with `expires 1y`) rem
 - `src/angular/src/app/app.scss` — Added `.toolbar-logo { height: 32px; margin-right: 10px; }`.
 
 **[LLM_CONTEXT: The toolbar now shows the UTSA logo (32px height) + "Security Training" text. The Home page hero logo renders without any CSS filter. Both changes are purely visual — no routing, data flow, or component logic changes. The deploy script (`deploy-aks.ps1 -Only angular`) handles building and deploying these changes.]**
+
+---
+
+## Public DNS & Content Sync (Mar 20, 2026)
+
+**[SECTION_METADATA: CONCEPTS=Azure_DNS,AKS,kubectl,Drupal_Content_Sync | DIFFICULTY=Intermediate | TOOLS=Azure_CLI,kubectl | RESPONDS_TO: Implementation_How-To, Debugging_Troubleshooting]**
+
+### Public DNS Setup
+
+**Goal:** Make the AKS deployment accessible via a human-readable URL without registering a domain name.
+
+**Approach:** Azure Public IPs support a DNS label that provides an FQDN under `<region>.cloudapp.azure.com`. No domain registration, no DNS zone, no cost.
+
+**Steps:**
+1. Got the AKS node resource group: `MC_rg-fulleralex47-0403_drupalpoc-aks_eastus2`
+2. Found the public IP resource name: `kubernetes-a067ca7da698f4cfaa96d96599f10ef3` (created by the nginx ingress controller)
+3. Set the DNS label:
+   ```bash
+   az network public-ip update \
+     --resource-group MC_rg-fulleralex47-0403_drupalpoc-aks_eastus2 \
+     --name kubernetes-a067ca7da698f4cfaa96d96599f10ef3 \
+     --dns-name achramlabs-security-training
+   ```
+
+**Result:** Site live at `http://achramlabs-security-training.eastus2.cloudapp.azure.com`
+
+**[LLM_CONTEXT: The DNS label `achramlabs-security-training` is set on the Azure Public IP resource `kubernetes-a067ca7da698f4cfaa96d96599f10ef3` in resource group `MC_rg-fulleralex47-0403_drupalpoc-aks_eastus2`. The FQDN is `achramlabs-security-training.eastus2.cloudapp.azure.com`. No TLS yet — HTTP only. Post-POC: add cert-manager + Let's Encrypt for HTTPS.]**
+
+### JMESPath Quote-Stripping Workaround
+
+**Issue:** When running `az` commands via `ddev exec`, the shell layer strips single quotes from `--query` JMESPath expressions, causing parse errors.
+
+**Workaround:** Use `-o table` or `-o tsv` instead of `--query` when running Azure CLI through DDEV exec. Alternatively, run `az` directly if installed locally.
+
+### YouTube Video Mismatch on AKS
+
+**Symptom:** After deploying the branded Angular app to AKS, the Training Modules page showed wrong YouTube videos (old titles like "Recognizing Phishing Emails" instead of the current "Phishing Awareness Fundamentals").
+
+**Root Cause:** Training module content (titles, descriptions, video URLs) is stored in **Drupal's database**, not hardcoded in Angular. The AKS Drupal pod connects to Azure MySQL, which has a **separate database** from the local DDEV MariaDB. The seed script had been updated locally but never re-run against AKS.
+
+**Fix:**
+1. Copied the current seed script to the AKS Drupal pod:
+   ```bash
+   kubectl cp scripts/seed_training_content.php drupalpoc/drupal-<pod>:/tmp/seed_training_content.php
+   ```
+2. Executed it inside the container:
+   ```bash
+   kubectl exec -n drupalpoc drupal-<pod> -c drupal -- \
+     /var/www/html/vendor/bin/drush scr /tmp/seed_training_content.php
+   ```
+3. The script deleted 3 old modules and created 3 new ones with correct YouTube URLs.
+
+**[LLM_CONTEXT: Local DDEV and AKS Drupal have separate databases (MariaDB vs Azure MySQL). Content changes made locally via seed scripts are NOT automatically reflected on AKS. To sync content, use `kubectl cp` to copy the script and `kubectl exec` to run it. The `seed_training_content.php` script is idempotent — it deletes all existing training_module nodes before creating fresh ones.]**
+
+### Documentation Update (Mar 20, 2026)
+
+Updated all project documentation with the live demo URL and cross-referenced for consistency:
+
+| Document | Changes |
+| :--- | :--- |
+| **README.md** | Added live demo URL front and center, new "Live Demo" section, updated Deployment section with DNS hostname and `imagePullPolicy: Always` |
+| **Home.md** | Added live demo URL, updated AKS Deployment line with DNS hostname |
+| **Architecture.md** | Fixed ResultsComponent from "Deferred" to "Applied" (was completed), updated LLM_CONTEXT from 5 to 6 branded components, added DNS and imagePullPolicy to AKS status |
+| **Planning.md** | Added "Deployment Polish & Public DNS" section with 8 completed tasks, added TLS cert to Post-POC backlog |
+| **ChatLog.md** | Added "Public DNS & Content Sync" section (this section) |
+| **pagefunctionality.md** | Updated Application Shell toolbar description ("TSUS Security Training" → "Security Training"), fixed Home hero logo description (removed CSS filter reference) |

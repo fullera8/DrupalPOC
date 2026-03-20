@@ -130,7 +130,7 @@ Every `[CONCEPTS: ...]` value used across the wiki, organized by domain. **Canon
 - **`Nginx`** — Reverse proxy / static file server. Used as Drupal PHP-FPM proxy and Angular SPA server. _Aliases: `nginx`_
 - **`PHP_FPM`** — PHP FastCGI Process Manager. Drupal runtime (PHP 8.4-FPM). Paired with Nginx sidecar. _Aliases: `PHP_8.4`_
 - **`Kubernetes`** — Container orchestration platform. AKS runs K8s v1.33.6. _Aliases: `K8s`, `kubectl`_
-- **`Ingress`** — Nginx ingress controller for path-based routing to AKS services. External IP: `20.85.112.48`. _Aliases: `Ingress_Controller`, `nginx_ingress`_
+- **`Ingress`** — Nginx ingress controller for path-based routing to AKS services. External IP: `20.85.112.48`. Public DNS: `achramlabs-security-training.eastus2.cloudapp.azure.com`. _Aliases: `Ingress_Controller`, `nginx_ingress`_
 - **`EF_Core`** — Entity Framework Core 8.0.24 — ORM for .NET API → Azure SQL. _Aliases: `Entity_Framework`, `Entity_Framework_Core`_
 - **`CI_CD`** — Continuous Integration / Continuous Deployment (GitHub Actions → GHCR → AKS)
 - **`Git`** — Version control. _Aliases: `GitHub` (hosting), `Version_Control`, `Gitignore`_

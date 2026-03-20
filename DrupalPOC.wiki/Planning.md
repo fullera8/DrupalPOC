@@ -228,6 +228,17 @@ See **[🧠 Open Brain](Open-Brain)** for full architecture and **[💬 Chat Log
 - [x] Remote tests: 6/6 passed (same test suite against ACA FQDN)
 - [x] Verified shared database (sequential IDs across servers: local 3–4, remote 5–6)
 
+### Deployment Polish & Public DNS (Mar 20, 2026)
+
+- [x] Angular production bundle budget fix (1 MB → 5 MB error, 500 kB → 2 MB warning)
+- [x] `imagePullPolicy: Always` on all containers in all 4 K8s deployments
+- [x] nginx SPA fallback `Cache-Control: no-cache` headers (prevent stale `index.html`)
+- [x] Home page hero logo fix (removed `filter: brightness(0) invert(1)` — white square bug)
+- [x] UTSA logo added to toolbar + title shortened to "Security Training"
+- [x] Azure Public IP DNS label: `achramlabs-security-training` → `achramlabs-security-training.eastus2.cloudapp.azure.com`
+- [x] AKS Drupal content re-seeded via `kubectl cp` + drush (3 training modules with correct YouTube URLs)
+- [x] Documentation updated with live demo URL across README, Home, Architecture, Planning, ChatLog
+
 ---
 
 ## Risk Register
@@ -258,6 +269,7 @@ These items are **intentionally deferred** from the POC. They represent the "sca
 - [ ] HPA (Horizontal Pod Autoscaler) configuration for AKS
 - [ ] GitHub Actions CI/CD pipeline (automated build → GHCR → AKS)
 - [ ] Production Ingress with TLS certificates
+- [ ] TLS certificate for `achramlabs-security-training.eastus2.cloudapp.azure.com` (cert-manager + Let's Encrypt)
 - [ ] Monitoring & logging (Azure Monitor, Application Insights)
 - [ ] Azure Key Vault for cross-pod secret management — Replace K8s `stringData` secrets (GoPhish API key, database passwords, GHCR tokens) with Azure Key Vault references using the [Secrets Store CSI Driver](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-driver). Pods mount secrets at runtime from Key Vault via `SecretProviderClass`, eliminating plaintext values in K8s manifests and enabling centralized rotation. This was identified as Tier 3 prevention after a GoPhish API key drift incident where the K8s secret and MySQL-backed GoPhish key fell out of sync post-migration.
 - [ ] **VPAT 2.5 Accessibility Conformance Report (ACR)** — Produce a completed VPAT 2.5-format ACR for the platform as a formal deliverable (generated from WCAG 2.1 AA testing artifacts in WP15).
