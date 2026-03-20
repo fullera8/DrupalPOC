@@ -20,47 +20,46 @@ Chart.register(...registerables);
   ],
   template: `
     <div class="dashboard-container">
-      <h2>Compliance Dashboard</h2>
-
-      <div *ngIf="loading" class="loading-container">
-        <mat-spinner diameter="48"></mat-spinner>
-      </div>
-
-      <div *ngIf="!loading" class="dashboard-grid">
-        <!-- KPI Row -->
-        <div class="kpi-row">
-          <mat-card class="kpi-card">
-            <mat-card-content>
-              <mat-icon class="kpi-icon" color="primary">quiz</mat-icon>
-              <div class="kpi-value">{{ totalQuizAttempts }}</div>
-              <div class="kpi-label">Quiz Attempts</div>
-            </mat-card-content>
-          </mat-card>
-          <mat-card class="kpi-card">
-            <mat-card-content>
-              <mat-icon class="kpi-icon" style="color:#4caf50">check_circle</mat-icon>
-              <div class="kpi-value">{{ quizPassRate }}%</div>
-              <div class="kpi-label">Quiz Pass Rate</div>
-            </mat-card-content>
-          </mat-card>
-          <mat-card class="kpi-card">
-            <mat-card-content>
-              <mat-icon class="kpi-icon" style="color:#ff9800">campaign</mat-icon>
-              <div class="kpi-value">{{ totalCampaigns }}</div>
-              <div class="kpi-label">Phishing Campaigns</div>
-            </mat-card-content>
-          </mat-card>
-          <mat-card class="kpi-card">
-            <mat-card-content>
-              <mat-icon class="kpi-icon" style="color:#f44336">warning</mat-icon>
-              <div class="kpi-value">{{ phishClickRate }}%</div>
-              <div class="kpi-label">Phish Click Rate</div>
-            </mat-card-content>
-          </mat-card>
+      <!-- Navy block: Header + KPI -->
+      <section class="navy-block">
+        <div class="header-section">
+          <h1 class="header-title">Compliance Dashboard</h1>
+          <p class="header-subtitle">Security Training Program Performance</p>
         </div>
 
-        <!-- Charts Row -->
-        <div class="charts-row">
+        <div *ngIf="loading" class="loading-container">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+
+        <div *ngIf="!loading" class="kpi-section">
+          <div class="kpi-grid">
+            <div class="stat-block">
+              <mat-icon class="stat-icon">quiz</mat-icon>
+              <div class="stat-value">{{ totalQuizAttempts }}</div>
+              <div class="stat-label">Quiz Attempts</div>
+            </div>
+            <div class="stat-block">
+              <mat-icon class="stat-icon">check_circle</mat-icon>
+              <div class="stat-value">{{ quizPassRate }}%</div>
+              <div class="stat-label">Quiz Pass Rate</div>
+            </div>
+            <div class="stat-block">
+              <mat-icon class="stat-icon">campaign</mat-icon>
+              <div class="stat-value">{{ totalCampaigns }}</div>
+              <div class="stat-label">Phishing Campaigns</div>
+            </div>
+            <div class="stat-block">
+              <mat-icon class="stat-icon">warning</mat-icon>
+              <div class="stat-value">{{ phishClickRate }}%</div>
+              <div class="stat-label">Phish Click Rate</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Charts section -->
+      <section *ngIf="!loading" class="charts-section">
+        <div class="charts-grid">
           <mat-card class="chart-card">
             <mat-card-header>
               <mat-card-title>Quiz Score Distribution</mat-card-title>
@@ -79,33 +78,131 @@ Chart.register(...registerables);
             </mat-card-content>
           </mat-card>
         </div>
-      </div>
+      </section>
     </div>
   `,
   styles: [`
-    .dashboard-container { }
+    /* ===== FONTS ===== */
+    h1, .header-title { font-family: 'Montserrat', sans-serif; }
+    p, div, .stat-label, .header-subtitle { font-family: 'Roboto', sans-serif; }
+
+    /* ===== LAYOUT ===== */
+    .dashboard-container {
+      margin: -24px;
+    }
+
+    /* ===== NAVY BLOCK (Header + KPIs) ===== */
+    .navy-block {
+      background: #032044;
+    }
+    .header-section {
+      padding: 32px 24px 24px;
+    }
+    .header-title {
+      font-weight: 700;
+      font-size: 1.8rem;
+      color: #FFFFFF;
+      margin: 0 0 8px 0;
+    }
+    .header-subtitle {
+      font-weight: 300;
+      font-size: 1rem;
+      color: rgba(255,255,255,0.7);
+      margin: 0;
+    }
+
+    /* ===== LOADING ===== */
     .loading-container {
-      display: flex; justify-content: center; padding: 64px;
+      display: flex;
+      justify-content: center;
+      padding: 64px;
     }
-    .kpi-row {
+    ::ng-deep .loading-container .mat-mdc-progress-spinner circle {
+      stroke: #F15A22;
+    }
+
+    /* ===== KPI SECTION ===== */
+    .kpi-section {
+      padding: 0 24px 32px;
+    }
+    .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 16px;
-      margin-bottom: 24px;
     }
-    .kpi-card mat-card-content {
-      display: flex; flex-direction: column; align-items: center; padding: 16px 0;
+    .stat-block {
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 24px 16px;
+      text-align: center;
+      background: transparent;
     }
-    .kpi-icon { font-size: 36px; width: 36px; height: 36px; }
-    .kpi-value { font-size: 32px; font-weight: 600; margin: 8px 0 4px; }
-    .kpi-label { font-size: 14px; color: rgba(0,0,0,0.54); }
-    .charts-row {
+    .stat-icon {
+      font-size: 24px;
+      width: 24px;
+      height: 24px;
+      color: #FFFFFF;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 700;
+      font-size: 2.5rem;
+      line-height: 1.1;
+      color: #F15A22;
+    }
+    .stat-label {
+      font-weight: 400;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #FFFFFF;
+      margin-top: 8px;
+    }
+
+    /* ===== CHARTS SECTION ===== */
+    .charts-section {
+      background: #F8F4F1;
+      padding: 32px 24px;
+    }
+    .charts-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
       gap: 24px;
     }
-    .chart-card { min-height: 300px; }
-    .chart-card canvas { max-height: 320px; }
+    .chart-card {
+      background: #FFFFFF;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      min-height: 300px;
+    }
+    .chart-card mat-card-content {
+      padding: 16px;
+    }
+    .chart-card canvas {
+      max-height: 320px;
+    }
+    ::ng-deep .chart-card .mat-mdc-card-header {
+      padding: 16px 16px 0;
+    }
+    ::ng-deep .chart-card .mat-mdc-card-title {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: #032044;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .header-title { font-size: 1.4rem; }
+      .stat-value { font-size: 2rem; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 480px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+      .charts-grid { grid-template-columns: minmax(280px, 1fr); }
+    }
   `],
 })
 export class DashboardComponent implements OnInit, AfterViewInit {
@@ -192,14 +289,15 @@ export class DashboardComponent implements OnInit, AfterViewInit {
         datasets: [{
           label: 'Number of Attempts',
           data: buckets,
-          backgroundColor: ['#ef5350', '#ff7043', '#ffa726', '#66bb6a', '#42a5f5'],
+          backgroundColor: ['#D5CFC8', '#C8DCFF', '#0C2340', '#032044', '#F15A22'],
         }],
       },
       options: {
         responsive: true,
         plugins: { legend: { display: false } },
         scales: {
-          y: { beginAtZero: true, ticks: { stepSize: 1 } },
+          y: { beginAtZero: true, ticks: { stepSize: 1, font: { family: "'Roboto', sans-serif" } } },
+          x: { ticks: { font: { family: "'Roboto', sans-serif" } } },
         },
       },
     });
@@ -217,12 +315,12 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     const data = Object.values(statusCounts);
     const colors = labels.map(s => {
       switch (s) {
-        case 'Sending': return '#90caf9';
-        case 'Email Sent': return '#64b5f6';
-        case 'Email Opened': return '#fff176';
-        case 'Clicked Link': return '#ffb74d';
-        case 'Submitted Data': return '#ef5350';
-        default: return '#bdbdbd';
+        case 'Sending': return '#C8DCFF';
+        case 'Email Sent': return '#D5CFC8';
+        case 'Email Opened': return '#EBE6E2';
+        case 'Clicked Link': return '#F15A22';
+        case 'Submitted Data': return '#032044';
+        default: return '#F8F4F1';
       }
     });
 
@@ -235,7 +333,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
       options: {
         responsive: true,
         plugins: {
-          legend: { position: 'bottom' },
+          legend: { position: 'bottom', labels: { font: { family: "'Roboto', sans-serif" } } },
         },
       },
     });

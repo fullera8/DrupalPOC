@@ -116,7 +116,7 @@
 - [x] Pull data from .NET API + GoPhish API
 
 **Demo Data & Polish:**
-- [ ] Seed Drupal with 5–10 training modules across categories
+- [x] Seed Drupal with 3 training modules across 3 categories (infrastructure proven, expand content post-POC)
 - [x] Seed 1–2 GoPhish phishing campaigns with mock results
 - [ ] Seed Azure SQL with sample scores and completions
 - [ ] End-to-end walkthrough: trainee views module → takes quiz → views dashboard
@@ -135,6 +135,72 @@
 - [x] Update sidenav: add Home as first nav item (5 total)
 - [x] Change default route from `/dashboard` to `/home`
 - [x] Add Montserrat font (Google Fonts, wght 600/700/800) for headlines
+- [x] Angular build verified (zero errors)
+
+### Dashboard Visual Overhaul — UTSA Branding (Mar 20, 2026) ✅
+
+- [x] Branded header bar (Midnight Navy, Montserrat title + Roboto subtitle)
+- [x] KPI stat blocks (transparent on navy, orange values, white labels, white icons)
+- [x] Charts section (Limestone background, UTSA color arrays for bar + pie charts)
+- [x] Responsive breakpoints (desktop 4-col/2-col, tablet 2-col/1-col, mobile 1-col)
+- [x] Loading spinner with UTSA Orange stroke on navy background
+- [x] Edge-to-edge layout (`margin: -24px`)
+- [x] Chart.js fonts updated to Roboto
+- [x] Angular build verified (zero errors)
+
+### Quiz Visual Overhaul — UTSA Branding (Mar 20, 2026) ✅
+
+- [x] Branded header bar (Midnight Navy, Montserrat title + Roboto subtitle)
+- [x] Info banner restyle (Limestone background, UTSA Orange left border, navy icon)
+- [x] Question card restyle (white cards, Concrete border, 12px radius, orange number badges, Montserrat titles)
+- [x] Required chip restyle (transparent with navy border, replacing `color="accent"`)
+- [x] Submit button (UTSA Orange) + Retake button (outlined orange), Montserrat 600
+- [x] Pass banner (warm orange `#FFF3E0` + orange left border) + Fail banner (navy `#032044` + white text)
+- [x] Loading spinner with UTSA Orange stroke
+- [x] Edge-to-edge layout (`margin: -24px`) + Limestone content background
+- [x] Responsive breakpoints (tablet ≤768px, mobile ≤480px)
+- [x] Angular build verified (zero errors)
+
+### Modules & Module Detail Visual Overhaul — UTSA Branding (Mar 20, 2026) ✅
+
+- [x] Branded header bar (Navy `#032044`, Montserrat title, Roboto subtitle) on both pages
+- [x] Pluralsight-inspired split layout on list page (hero panel + dark sidebar accordion)
+- [x] Hero placeholder with Athletics Navy background, large orange `play_circle` icon
+- [x] Dark sidebar accordion (transparent panels, white text, first expanded, others collapsed)
+- [x] Numbered orange circle badges (1, 2, 3…) replacing `play_circle` icons
+- [x] Duration chips restyled (`rgba(255,255,255,0.2)` on sidebar, Concrete on detail)
+- [x] Module detail: branded header with orange back link, Limestone content area
+- [x] Video frame with Athletics Navy `#0C2340` outer frame, 12px radius, shadow
+- [x] Description card with "About This Module" title, Concrete border, 12px radius
+- [x] Metadata chips: difficulty green/yellow/red, duration/category Concrete with Navy text
+- [x] UTSA Orange loading spinners on both pages
+- [x] Edge-to-edge layout (`margin: -24px`) on both pages
+- [x] Responsive breakpoints (tablet 768px, mobile 480px)
+- [x] Angular build verified (zero errors)
+- [x] Bugfix: `field_video_url` (Link field) → extract `.uri` from JSON:API object in `mapModule()`
+- [x] Bugfix: `field_description` (formatted text) → extract `.value` from JSON:API object in `mapModule()`
+- [x] Bugfix: `field_category.data` (entity reference array) → unwrap with `Array.isArray()` in `mapModule()`
+- [x] Bugfix: Seed script `find_term_id()` → `find_or_create_term_id()` to auto-create missing taxonomy terms
+- [x] Re-seeded training modules with proper category assignments
+
+### Results Visual Overhaul — UTSA Branding (Mar 20, 2026) ✅
+
+- [x] Branded header bar (Midnight Navy `#032044`, Montserrat title + Roboto subtitle)
+- [x] Tab group restyled on navy background (orange `#F15A22` active indicator, white labels, transparent background)
+- [x] Quiz KPI row (Athletics Navy `#0C2340`, 3-column grid, orange stat values, white labels, thin white borders)
+- [x] Quiz scores table (white card wrapper, Concrete `#EBE6E2` header row, branded typography, Limestone hover)
+- [x] Pass/fail chips pill-shaped (16px radius) with semantic green/red colors
+- [x] Campaign cards (white, 12px radius, Concrete border, subtle shadow)
+- [x] Campaign summary stats (5-column grid, orange values, Navy labels, uppercase)
+- [x] Campaign target tables matching quiz table styling
+- [x] Status chips pill-shaped with semantic colors retained
+- [x] Refresh buttons (orange `#F15A22` outlined, Montserrat 600, 8px radius)
+- [x] Empty state cards (Limestone background, Concrete left border)
+- [x] Error state cards (Limestone background, red left border)
+- [x] Loading spinners UTSA Orange via `::ng-deep`
+- [x] Edge-to-edge layout (`margin: -24px`)
+- [x] Responsive breakpoints (desktop >1024px, tablet 768–1024px, mobile <768px)
+- [x] Tab content area Limestone `#F8F4F1` background
 - [x] Angular build verified (zero errors)
 
 ### Open Brain — MCP Server (Steps 1–12)

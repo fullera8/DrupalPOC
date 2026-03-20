@@ -109,15 +109,45 @@ To support fine-grained cost scaling and decouple logical roles, the architectur
 
 | Tier & Logical Role | Service Component | Deployment | Backing Store | POC Scope & Post-POC Expansion |
 | :--- | :--- | :--- | :--- | :--- |
-| **Frontend Hub**<br>*(Trainee UI Layer)* | **Angular SPA** | AKS (1 replica) | — | **POC:** UTSA-branded landing page, training module viewer, quiz UI, compliance dashboard.<br>**Post-POC:** Full reporting dashboard, simulation inbox, collaboration. |
+| **Frontend Hub**<br>*(Trainee UI Layer)* | **Angular SPA** | AKS (1 replica) | — | **POC:** UTSA-branded landing page, UTSA-branded compliance dashboard (Chart.js), UTSA-branded quiz UI, UTSA-branded training modules (Pluralsight-style split layout + branded detail page), UTSA-branded simulation results (navy header, tabbed KPI + data tables).<br>**Post-POC:** Full reporting dashboard, simulation inbox, collaboration. |
 | **Business Rule Gateway**<br>*(Processing Layer)* | **.NET 8 Web API** | AKS (1 replica) | Azure SQL Server | **POC:** Thin stub handling health, result saving, and scores.<br>**Post-POC:** Core domain logic, auth, LTI 1.3, analytics. |
-| **Content Repository**<br>*(Headless CMS Layer)* | **Drupal 11 Headless** | AKS (1 replica) | Azure MySQL | **POC:** Headless JSON:API serving training content, webforms.<br>**Post-POC:** Advanced workflows, content staging, tenant definitions. |
+| **Content Repository**<br>*(Headless CMS Layer)* | **Drupal 11 Headless** | AKS (1 replica) | Azure MySQL | **POC:** Headless JSON:API serving training content, webforms. Note: JSON:API returns structured objects for Link, formatted text, and entity reference fields — Angular `mapModule()` uses optional chaining and `Array.isArray()` to extract scalar values (see ChatLog: JSON:API Field Mapping Bugfixes).<br>**Post-POC:** Advanced workflows, content staging, tenant definitions. |
 | **Specialized Tooling**<br>*(Simulation Layer)* | **GoPhish**<br>**YouTube/Vimeo** | AKS (1 replica)<br>External | Azure MySQL (gophish DB) / MariaDB (local dev)<br>— | **POC:** Basic campaign click tracking via REST API; embedded video training.<br>**Post-POC:** SMTP integration, scheduled campaigns, scalable Azure Blob Storage. |
 | **Persistence Layer**<br>*(Database Tiers)* | **Azure SQL Server**<br>**Azure MySQL** | Azure Managed | — | **POC:** Basic DTU 5 for SQL, Burstable B1ms for MySQL.<br>**Post-POC:** Independent scaling based on read/write profiles (e.g. heavy SQL reads vs light MySQL writes). |
 | **Infrastructure**<br>*(Hosting Layer)* | **AKS & GHCR**<br>**Azure CLI / DDEV** | Azure / GitHub<br>Local Environment | — | **POC:** Nginx ingress, sidecar pod setups, CI/CD pipeline, local Mailhog.<br>**Post-POC:** Auto-scaling node pools, WAF, Redis caching setup. |
 | **Developer Tooling**<br>*(AI Memory Layer)* | **Open Brain MCP Server** | Azure Container Apps (0–3 replicas) | Azure SQL `openbrain-db` (VECTOR 1536) + Azure OpenAI | **POC:** 4 MCP tools (remember, recall, search, forget). Persistent memory for Copilot agents. Deterministic metadata tagging. Scale-to-zero.<br>**Post-POC:** Multi-brain isolation, conversation capture, wiki import pipeline. See **[🧠 Open Brain](Open-Brain)**. |
 
 > **Note:** Webform 6.3.x-dev is the only branch compatible with Drupal 11 (stable releases only support D10). Locked at commit `13ce2a6`.
+
+### UTSA Design System
+
+The Angular SPA applies a cohesive UTSA-branded design system to trainee-facing pages. This is a **cross-cutting concern** that spans the Frontend Hub tier.
+
+**Applied (POC — Mar 20, 2026):**
+- **Home** (`HomeComponent`) — Hero, value proposition cards, training pathway tiles, KPI row, footer
+- **Dashboard** (`DashboardComponent`) — Header bar, KPI stat blocks, Chart.js charts section
+- **Quiz** (`QuizComponent`) — Header bar, question cards with number badges, pass/fail banners, buttons
+- **Modules** (`ModulesComponent`) — Pluralsight-inspired split layout: branded header bar, hero placeholder panel (Athletics Navy + large orange play icon), dark sidebar accordion with numbered orange badges, collapsed-by-default secondary sections
+- **Module Detail** (`ModuleDetailComponent`) — Branded header with orange back link, Limestone content area, Athletics Navy video frame (12px radius, shadow), white description card with "About This Module" title, Concrete-styled metadata chips
+
+**Deferred (Post-POC):**
+- Simulation Results (`ResultsComponent`) — Tab group, tables, campaign cards
+
+**Design Tokens:**
+
+| Token | Hex | Usage |
+| :--- | :--- | :--- |
+| UTSA Orange | `#F15A22` | CTAs, accent values, stat highlights, buttons |
+| Midnight Navy | `#032044` | Header bars, KPI backgrounds, text color |
+| Athletics Navy | `#0C2340` | Chart gradient stops, alternative dark bg |
+| Limestone | `#F8F4F1` | Content area backgrounds, card surfaces |
+| Concrete | `#EBE6E2` | Card borders, dividers |
+| Smoke | `#D5CFC8` | Subtle accents, placeholder text |
+| River Mist | `#C8DCFF` | Chart secondary color, blue highlights |
+
+**Fonts:** Montserrat (700 headlines, 600 titles, 800 hero) + Roboto (300 subtitles, 400 body, 500 emphasis). Loaded from Google Fonts in `index.html`.
+
+**[LLM_CONTEXT: If UTSA brand colors or fonts change, update all five branded components (HomeComponent, DashboardComponent, QuizComponent, ModulesComponent, ModuleDetailComponent) and the Chart.js color arrays in DashboardComponent. The design system uses `margin: -24px` for edge-to-edge layouts — this negates the app shell's content-area padding. The Modules page uses a unique Pluralsight-inspired split layout pattern (hero panel + dark sidebar) not shared by other pages.]**
 
 ### Repository Structure
 

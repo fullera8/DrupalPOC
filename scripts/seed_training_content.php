@@ -10,8 +10,8 @@
 use Drupal\node\Entity\Node;
 use Drupal\taxonomy\Entity\Term;
 
-// Helper: find a taxonomy term by name in training_category vocabulary
-function find_term_id($term_name) {
+// Helper: find or create a taxonomy term in training_category vocabulary
+function find_or_create_term_id($term_name) {
   $terms = \Drupal::entityTypeManager()
     ->getStorage('taxonomy_term')
     ->loadByProperties([
@@ -19,35 +19,64 @@ function find_term_id($term_name) {
       'name' => $term_name,
     ]);
   $term = reset($terms);
-  return $term ? $term->id() : NULL;
+  if ($term) {
+    return $term->id();
+  }
+  // Term doesn't exist — create it
+  $new_term = Term::create([
+    'vid' => 'training_category',
+    'name' => $term_name,
+  ]);
+  $new_term->save();
+  echo "📁 Created category term: '$term_name' (tid: {$new_term->id()})\n";
+  return $new_term->id();
 }
 
 $modules = [
   [
-    'title' => 'Recognizing Phishing Emails',
-    'description' => "Phishing emails are one of the most common cyber threats facing organizations today. In this module, you'll learn how to identify the telltale signs of a phishing attempt — including suspicious sender addresses, urgent language, mismatched URLs, and unexpected attachments.\n\nBy the end of this training, you'll be able to confidently spot phishing emails and know exactly what steps to take to protect yourself and your institution.",
-    'video_url' => 'https://www.youtube.com/watch?v=XBkzBrXlle0',
+    'title' => 'Foundations of Phishing Awareness',
+    'description' => "Core training for recognizing and reporting email-based threats.",
+    'video_url' => 'https://www.youtube.com/watch?v=gWGhUdHItto',
     'category' => 'Phishing Awareness',
     'difficulty' => 'beginner',
-    'duration' => 5,
+    'duration' => 8,
   ],
   [
-    'title' => 'Social Engineering: Manipulation Tactics',
-    'description' => "Social engineering attacks exploit human psychology rather than technical vulnerabilities. Attackers use techniques like pretexting, baiting, tailgating, and quid pro quo to trick people into revealing sensitive information or granting unauthorized access.\n\nThis module covers the most common social engineering tactics used against university staff and students, with real-world examples and practical defenses you can apply immediately.",
-    'video_url' => 'https://www.youtube.com/watch?v=lc7scxvKQOo',
+    'title' => 'Advanced Social Engineering',
+    'description' => "Deep-dive into pretexting, vishing, and multi-vector attack scenarios.",
+    'video_url' => 'https://www.youtube.com/watch?v=uMkOphesrqI',
     'category' => 'Social Engineering',
     'difficulty' => 'intermediate',
-    'duration' => 8,
+    'duration' => 15,
   ],
   [
     'title' => 'Password Best Practices & MFA',
     'description' => "Weak passwords remain one of the top entry points for cyberattacks. This module covers modern password best practices — including passphrase strategies, password manager usage, and the critical importance of multi-factor authentication (MFA).\n\nYou'll learn why 'P@ssw0rd123' isn't as secure as you think, how attackers crack passwords, and how MFA adds a vital second layer of protection to your accounts.",
-    'video_url' => 'https://www.youtube.com/watch?v=aEmF3Iylvr4',
+    'video_url' => 'https://www.youtube.com/watch?v=xUp5S0nBnfc',
     'category' => 'Password Hygiene',
     'difficulty' => 'beginner',
-    'duration' => 6,
+    'duration' => 3,
   ],
 ];
+
+// ── Step 1: Delete ALL existing training_module nodes ──
+$existing_nids = \Drupal::entityTypeManager()
+  ->getStorage('node')
+  ->getQuery()
+  ->accessCheck(FALSE)
+  ->condition('type', 'training_module')
+  ->execute();
+
+if (!empty($existing_nids)) {
+  $existing_nodes = Node::loadMultiple($existing_nids);
+  foreach ($existing_nodes as $node) {
+    echo "🗑️ Deleted: '{$node->getTitle()}' (nid: {$node->id()})\n";
+    $node->delete();
+  }
+  echo "Removed " . count($existing_nids) . " old module(s).\n\n";
+}
+
+// ── Step 2: Create new modules ──
 
 $created = 0;
 foreach ($modules as $mod) {
@@ -64,7 +93,7 @@ foreach ($modules as $mod) {
     continue;
   }
 
-  $category_tid = find_term_id($mod['category']);
+  $category_tid = find_or_create_term_id($mod['category']);
 
   $node = Node::create([
     'type' => 'training_module',

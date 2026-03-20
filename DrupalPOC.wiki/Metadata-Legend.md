@@ -24,6 +24,7 @@ This is the **single source of truth** for every metadata tag used across the Dr
 | **[ChatLog](ChatLog)** | Setup logs, architecture decisions, troubleshooting, design rationale | `RESPONDS_TO: Debugging_Troubleshooting, Implementation_How-To, Architectural_Decision` |
 | **[Open-Brain](Open-Brain)** | MCP server architecture, 4 tools, connection guide, Azure resource map, dev setup | `RESPONDS_TO: Architectural_Decision, Implementation_How-To, Definition_Explanation` |
 | **[Metadata-Legend](Metadata-Legend)** | Tag definitions and interpretation rules (this document) | `DOCUMENT_TYPE: Reference_Schema` |
+| **[Page Functionality](pagefunctionality)** | UI layout, data flow, technical notes for each Angular page | `RESPONDS_TO: Definition_Explanation, Implementation_How-To` |
 
 **Schema Origin:** Metadata schema v1.1. This document is **self-contained** — all definitions needed to interpret DrupalPOC wiki tags are below.
 
@@ -107,11 +108,12 @@ Every `[CONCEPTS: ...]` value used across the wiki, organized by domain. **Canon
 - **`DDEV`** — Local development environment (Docker-based). Version: 1.25.0
 - **`Drush`** — Drupal CLI tool (site install, cache clear, config management). Version: 13.7.1
 - **`Composer`** — PHP dependency manager (manages Drupal core, modules, libraries)
-- **`JSON_API`** — Drupal core's built-in RESTful API for headless content delivery
+- **`JSON_API`** — Drupal core's built-in RESTful API for headless content delivery. **Gotcha:** Returns structured objects for Link (`{ uri, title }`), formatted text (`{ value, format, processed }`), and entity reference fields (array of `{ type, id }`). Angular `mapModule()` uses optional chaining and `Array.isArray()` to safely extract values. See ChatLog: JSON:API Field Mapping Bugfixes.
 - **`Decoupled_Drupal`** — Architecture where Drupal is headless CMS, frontend is a separate SPA. _Aliases: `Decoupled_Architecture`_
 
 ### Frontend & Backend
 - **`Angular`** — Angular SPA framework (trainee-facing UI). Uses Angular Material + Chart.js
+- **`UTSA_Branding`** — UTSA design system unifying all six trainee-facing pages with Montserrat + Roboto fonts, Orange `#F15A22`, Midnight Navy `#032044`, Limestone `#F8F4F1`. Applied to Home, Dashboard, Quiz, Modules, Module Detail, Results (Mar 20, 2026). See pagefunctionality.md for per-page design details.
 - **`DotNet8`** — .NET 8 Web API (thin stub in POC; full business logic post-POC). _Aliases: `.NET_8`, `.NET`_
 - **`GoPhish`** — Open-source phishing simulation engine (Apache 2.0). REST API + click tracking. The "wow factor" for the pitch
 

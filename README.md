@@ -145,6 +145,9 @@ For the full architecture diagram (Mermaid), service inventory, build-vs-borrow 
 | **Day 5** | ✅ Complete | start-dev.ps1 / stop-dev.ps1 / deploy-aks.ps1 scripts, GoPhish local setup (Mailpit SMTP), GoPhish SQLite → Azure MySQL migration, DDEV GoPhish sidecar, Architecture Semantic Enrichment |
 | **Open Brain** | ✅ Complete | LLM-agnostic persistent memory MCP server — 12 steps from scaffold to integration testing. 12/12 end-to-end tests passed (6 local + 6 remote). See [Open Brain wiki](DrupalPOC.wiki/Open-Brain.md). |
 | **Landing Page** | ✅ Complete | UTSA-branded marketing-quality landing page (`HomeComponent`). Hero with campus backdrop, value proposition cards, training pathway tiles, live KPI row, footer. Default route → `/home`. Montserrat font, 5 sidenav items. |
+| **Dashboard Overhaul** | ✅ Complete | UTSA-branded visual overhaul of `DashboardComponent`. Navy header, KPI stat blocks, Limestone charts section, UTSA Chart.js colors, 3 responsive breakpoints. Style-only — no logic changes. |
+| **Quiz Overhaul** | ✅ Complete | UTSA-branded visual overhaul of `QuizComponent`. Navy header, Limestone content, orange number badges, branded pass/fail banners, orange buttons. Style-only — no quiz logic changes. |
+| **Modules Overhaul** | ✅ Complete | UTSA-branded visual overhaul of `ModulesComponent` + `ModuleDetailComponent`. Pluralsight-inspired split layout (hero + dark sidebar), numbered orange badges, branded detail with video frame. Includes JSON:API field mapping bugfixes in `mapModule()` and seed script `find_or_create_term_id()` fix. |
 
 See [Planning](DrupalPOC.wiki/Planning.md) for detailed task tracking.
 
@@ -435,6 +438,7 @@ The project wiki contains detailed architecture decisions, task tracking, and co
 | [ChatLog](DrupalPOC.wiki/ChatLog.md) | Running conversation log with all design decisions |
 | [Open-Brain](DrupalPOC.wiki/Open-Brain.md) | Open Brain MCP server architecture, tools, and connection guide |
 | [Metadata-Legend](DrupalPOC.wiki/Metadata-Legend.md) | Tag definitions for wiki metadata system |
+| [Page Functionality](DrupalPOC.wiki/pagefunctionality.md) | Developer onboarding guide — UI/UX layout, data flow, design system details, and technical notes for every Angular page |
 
 ---
 

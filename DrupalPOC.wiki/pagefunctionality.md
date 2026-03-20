@@ -116,29 +116,38 @@ The Dashboard is the landing page and executive summary. It answers the question
 
 ### UI Layout
 
-The page has two visual sections stacked vertically:
+The page has three visual sections stacked vertically:
 
-**KPI Row** — A responsive 4-column grid of Material cards, each displaying:
+**Branded Header Bar** — Full-width Midnight Navy `#032044` background. Contains:
+- **Title:** *"Compliance Dashboard"* — Montserrat 700, white, 1.8rem
+- **Subtitle:** *"Security Training Program Performance"* — Roboto 300, `rgba(255,255,255,0.7)`, 1rem
 
-| KPI | Icon | Color | Data Source | Calculation |
-| :--- | :--- | :--- | :--- | :--- |
-| Quiz Attempts | `quiz` | Primary blue | .NET API `GET /api/scores` | Count of all `SimulationResult` records |
-| Quiz Pass Rate | `check_circle` | Green `#4caf50` | .NET API `GET /api/scores` | % of scores >= 80 |
-| Phishing Campaigns | `campaign` | Orange `#ff9800` | GoPhish API `GET /api/campaigns` | Count of all campaigns |
-| Phish Click Rate | `warning` | Red `#f44336` | GoPhish API `GET /api/campaigns` | % of targets who clicked link or submitted data |
+**KPI "At a Glance" Section** — Continuous Midnight Navy `#032044` background (shared with header). A responsive 4-column grid of stat blocks, each with a thin white border outline (`1px solid rgba(255,255,255,0.2)`), 12px border-radius, and transparent background:
 
-**Charts Row** — A responsive 2-column grid of Material cards, each containing a Chart.js canvas:
+| KPI | Icon | Data Source | Calculation |
+| :--- | :--- | :--- | :--- |
+| Quiz Attempts | `quiz` (24px, white) | .NET API `GET /api/scores` | Count of all `SimulationResult` records |
+| Quiz Pass Rate | `check_circle` (24px, white) | .NET API `GET /api/scores` | % of scores >= 80 |
+| Phishing Campaigns | `campaign` (24px, white) | GoPhish API `GET /api/campaigns` | Count of all campaigns |
+| Phish Click Rate | `warning` (24px, white) | GoPhish API `GET /api/campaigns` | % of targets who clicked link or submitted data |
 
-| Chart | Type | Description |
+Stat values: UTSA Orange `#F15A22`, Montserrat 700, 2.5rem. Labels: white, uppercase, Roboto 400, 0.85rem, letter-spacing 0.5px.
+
+**Charts Section** — Limestone `#F8F4F1` background, below the navy block. A responsive 2-column grid of `mat-card` elements (white, 12px border-radius, subtle shadow `0 2px 8px rgba(0,0,0,0.08)`). Card titles: Montserrat 600, Navy `#032044`, 1.1rem.
+
+| Chart | Type | UTSA Color Scheme |
 | :--- | :--- | :--- |
-| Quiz Score Distribution | Bar chart | Buckets scores into 5 ranges (0-20%, 21-40%, 41-60%, 61-80%, 81-100%) with color-coded bars (red → blue). |
-| Phishing Campaign Results | Pie chart | Segments by GoPhish status (Sending, Email Sent, Email Opened, Clicked Link, Submitted Data) with a bottom legend. |
+| Quiz Score Distribution | Bar chart | Smoke `#D5CFC8` → River Mist `#C8DCFF` → Athletics Navy `#0C2340` → Midnight Navy `#032044` → UTSA Orange `#F15A22` (5 buckets: 0-20% through 81-100%) |
+| Phishing Campaign Results | Pie chart | Sending = River Mist `#C8DCFF`, Email Sent = Smoke `#D5CFC8`, Email Opened = Concrete `#EBE6E2`, Clicked Link = UTSA Orange `#F15A22`, Submitted Data = Midnight Navy `#032044` |
 
 ### Technical Notes
 
+- **UTSA Brand Consistency:** The Dashboard uses the same Montserrat + Roboto font pairing, UTSA Orange `#F15A22`, and Midnight Navy `#032044` as the Home page, establishing a cohesive design system across the application.
+- **Edge-to-edge layout:** The component uses `margin: -24px` on `.dashboard-container` to negate the app shell's content-area padding, allowing the navy background to extend to the edges.
+- **Loading spinner:** Renders on the navy background with UTSA Orange stroke color (`::ng-deep` override on `mat-mdc-progress-spinner circle`).
 - **Data loading:** Both API calls (`getScores` and `getCampaigns`) fire in parallel on `ngOnInit`. A counter tracks completion; once both resolve (success or error), the loading spinner hides and charts render.
-- **Chart rendering:** Chart.js `registerables` are registered globally. Charts are created in a `setTimeout` after `loading=false` to ensure the `*ngIf` has added the `<canvas>` elements to the DOM.
-- **Responsive grid:** CSS Grid with `auto-fit` / `minmax` ensures the KPI row and charts row collapse gracefully on smaller screens.
+- **Chart rendering:** Chart.js `registerables` are registered globally. Charts are created in a `setTimeout` after `loading=false` to ensure the `*ngIf` has added the `<canvas>` elements to the DOM. Chart.js axis labels and legend use Roboto font family.
+- **Responsive:** Three breakpoints — desktop (4-col KPI, 2-col charts), tablet ≤768px (2-col KPI, 1-col charts, header title 1.4rem, stat values 2rem), mobile ≤480px (1-col KPI, 1-col charts).
 
 ---
 
@@ -148,30 +157,51 @@ The page has two visual sections stacked vertically:
 
 **Screenshot:** `Drupal_Training.png`
 
+> **Branding status (Mar 20, 2026):** This page now uses the UTSA brand design system (Montserrat + Roboto fonts, Orange/Navy/Limestone palette). See below for Pluralsight-inspired split layout details.
+
 ### Business Purpose
 
 This is the training catalog. Employees browse available security awareness modules organized by category (e.g., "Phishing Basics," "Social Engineering"). The goal is to guide users to relevant video-based training before they take the quiz.
 
 ### UI Layout
 
-- **Heading** — "Training Modules"
-- **Accordion** — One `mat-expansion-panel` per category, all expanded by default. Each panel header shows a folder icon, the category name, and a count badge (e.g., "(3)").
-- **Module List** — Inside each panel, a `mat-nav-list` of clickable items. Each item displays:
-  - A `play_circle` icon
-  - The module title (linked to `/modules/:id`)
-  - A chip set showing:
-    - **Difficulty chip** — Color-coded: Beginner = green (`#c8e6c9`), Intermediate = yellow (`#fff9c4`), Advanced = red (`#ffcdd2`)
-    - **Duration chip** — Clock icon + duration text (e.g., "15 minutes")
+The page uses a **Pluralsight-inspired split layout** with a branded header bar, hero placeholder, and dark sidebar:
+
+**1. Header Bar** — Full-width Midnight Navy `#032044` background with `margin: -24px` edge-to-edge reset.
+- Title: *"Training Modules"* — Montserrat 700, white, 1.8rem
+- Subtitle: *"Security Awareness Curriculum"* — Roboto 300, `rgba(255,255,255,0.7)`
+
+**2. Split Layout** — CSS Grid with `grid-template-columns: 1fr 380px`:
+- **Left — Hero Panel:** Athletics Navy `#0C2340` background, centered large orange `play_circle` icon (80px, `#F15A22`), subtitle text *"Select a module to begin"*. `min-height: 400px`.
+- **Right — Sidebar Panel:** Midnight Navy `#032044` background, contains the accordion.
+
+**3. Sidebar Accordion** — Dark-themed `mat-expansion-panel` list:
+- Panel backgrounds: transparent on navy. Headers: white Montserrat 600 text, white folder icon, pill count badge (`rgba(255,255,255,0.3)` background).
+- First section expanded, others collapsed (`[expanded]="i === 0"`).
+- Each module item displays:
+  - **Numbered orange circle badge** — UTSA Orange `#F15A22`, Montserrat 700, 28px circle (replaces old `play_circle` icon)
+  - Module title — white, Roboto 400
+  - **Difficulty chip** — Color-coded: Beginner = green (`#c8e6c9`), Intermediate = yellow (`#fff9c4`), Advanced = red (`#ffcdd2`), dark text `#333`
+  - **Duration chip** — `rgba(255,255,255,0.2)` background, white text
+- Hover state: `rgba(255,255,255,0.08)` background
+
+**4. Loading State** — UTSA Orange spinner on Athletics Navy `#0C2340` background.
+
+**5. Responsive** — At ≤768px, split layout stacks vertically (hero on top, sidebar below, hero min-height 200px). At ≤480px, title shrinks to 1.4rem.
 
 ### Data Flow
 
 1. `DrupalService.getTrainingModules()` calls Drupal JSON:API at `/jsonapi/node/training_module?include=field_category`.
-2. Response is mapped to `TrainingModule[]` objects. The `field_category` taxonomy relationship is resolved via the JSON:API `included` sideload.
+2. Response is mapped to `TrainingModule[]` objects via `mapModule()`. The mapping handles Drupal JSON:API field types:
+   - **Link fields** (`field_video_url`) return `{ uri, title, options }` → extracted via `?.uri` fallback
+   - **Formatted text fields** (`field_description`) return `{ value, format, processed }` → extracted via `?.value` fallback
+   - **Entity reference fields** (`field_category`) return `data` as an array `[{type, id}]` → unwrapped via `Array.isArray()` before resolving against `included` sideload
 3. The component groups modules into `{ category, modules[] }` using a `Map` and renders one accordion panel per group.
 
 ### Technical Notes
 
 - **Content is CMS-driven.** Module titles, descriptions, video URLs, difficulty, duration, and categories are all managed in Drupal as `training_module` content type fields. No hardcoded training data exists in Angular.
+- **JSON:API field type gotcha:** Drupal JSON:API returns structured objects for Link, formatted text, and multi-value entity reference fields — not plain strings. The `mapModule()` method in `drupal.service.ts` uses optional chaining (`?.uri`, `?.value`) and `Array.isArray()` to safely extract scalar values. This was a bug discovered during integration testing (Mar 20, 2026). See ChatLog: [Drupal JSON:API Field Mapping Bugfixes](ChatLog#drupal-jsonapi-field-mapping-bugfixes-mar-20-2026) for the full field-type reference table.
 - **Navigation:** Clicking a module navigates to `/modules/:id` using `routerLink`, passing the Drupal UUID.
 
 ---
@@ -180,26 +210,41 @@ This is the training catalog. Employees browse available security awareness modu
 
 **[SECTION_METADATA: CONCEPTS=Video_Embed,Drupal_JSON_API,Content_Detail | DIFFICULTY=Beginner-Intermediate | RESPONDS_TO: Definition_Explanation]**
 
+> **Branding status (Mar 20, 2026):** This page now uses the UTSA brand design system (Montserrat + Roboto fonts, Orange/Navy/Limestone palette). See below for branded header, video frame, and description card details.
+
 ### Business Purpose
 
 This is the training consumption page. An employee watches a video lesson and reads the module description. It is the primary learning experience before taking the quiz.
 
 ### UI Layout
 
-- **Back Link** — A Material button with arrow icon, linking back to `/modules`.
-- **Title** — The module's `title` as an `<h2>`.
-- **Metadata Chips** — A chip set with:
-  - Difficulty (color-coded, same scheme as Modules list)
-  - Duration (clock icon)
-  - Category (category icon)
-- **Video Player** — A responsive 16:9 iframe (`padding-bottom: 56.25%` trick). Supports YouTube and Vimeo embeds.
-- **Description Card** — A Material card with the module's `field_description` text.
+**1. Header Bar** — Full-width Midnight Navy `#032044` background with `margin: -24px` edge-to-edge reset.
+- **Back Link:** Orange `#F15A22` text, Montserrat 600, `arrow_back` icon — links to `/modules`. Positioned top-left inside the header.
+- **Title:** `{{ mod.title }}` — Montserrat 700, white, 1.8rem
+- **Subtitle:** `{{ mod.category }}` — Roboto 300, `rgba(255,255,255,0.7)`
+
+**2. Content Area** — Limestone `#F8F4F1` background with `padding: 24px`.
+
+**3. Metadata Chips** — A chip set with:
+  - **Difficulty chip** — Color-coded (same green/yellow/red scheme), dark text `#333`
+  - **Duration chip** — Concrete `#EBE6E2` background, Navy `#032044` text and icon
+  - **Category chip** — Concrete `#EBE6E2` background, Navy `#032044` text and icon
+
+**4. Video Frame** — Athletics Navy `#0C2340` outer frame with `padding: 16px`, `border-radius: 12px`, `box-shadow: 0 4px 16px rgba(0,0,0,0.12)`. Inner iframe retains responsive 16:9 ratio with `border-radius: 12px`.
+
+**5. Description Card** — White `#FFFFFF` background, Concrete `#EBE6E2` border, `border-radius: 12px`, `box-shadow: 0 2px 8px rgba(0,0,0,0.06)`.
+- Title: *"About This Module"* — Montserrat 600, Navy `#032044`, 1.1rem
+- Body: `{{ mod.description }}` — Roboto 400, Navy `#032044`
+
+**6. Loading State** — UTSA Orange spinner on Limestone background.
+
+**7. Responsive** — At ≤768px, reduced header and content padding, smaller video frame padding. At ≤480px, title shrinks to 1.4rem.
 
 ### Data Flow
 
 1. The route parameter `:id` (a Drupal UUID) is read from `ActivatedRoute`.
-2. `DrupalService.getTrainingModule(id)` fetches a single node with its category included.
-3. If the module has a `videoUrl`, it is converted to an embed URL and sanitized via `DomSanitizer.bypassSecurityTrustResourceUrl()`.
+2. `DrupalService.getTrainingModule(id)` fetches a single node with its category included. The `mapModule()` method extracts `.uri` from the Link field, `.value` from the formatted text field, and unwraps the category array — see Modules data flow for details.
+3. If the module has a `videoUrl`, it is converted to an embed URL via `toEmbedUrl()` and sanitized via `DomSanitizer.bypassSecurityTrustResourceUrl()`.
 
 ### Video URL Conversion
 
@@ -223,24 +268,34 @@ The `toEmbedUrl()` method handles two providers:
 
 The Quiz page is a graded assessment that tests the employee's phishing awareness knowledge after completing training. Scores are recorded and surfaced on the Dashboard and Results pages. A pass threshold of **80%** determines compliance.
 
-### UI Layout — Pre-Submission
+### UI Layout
 
-- **Info Banner** — A blue Material card explaining that the quiz is authored in Drupal Webforms and rendered dynamically via the `webform_rest` API.
-- **Question Cards** — One `mat-card` per question, each showing:
-  - Question number and title
-  - A "Required" chip
-  - **Radio buttons** (`mat-radio-group`) for multiple-choice questions
+The page has three visual sections stacked vertically, matching the UTSA brand design system established by the Home page and Dashboard:
+
+**Branded Header Bar** — Full-width Midnight Navy `#032044` background. Contains:
+- **Title:** *"Phishing Awareness Quiz"* — Montserrat 700, white, 1.8rem
+- **Subtitle:** *"Test Your Security Awareness Knowledge"* — Roboto 300, `rgba(255,255,255,0.7)`, 1rem
+
+**Content Area (Pre-Submission)** — Limestone `#F8F4F1` background. Contains:
+
+- **Info Banner** — A branded callout card with Limestone `#F8F4F1` background, UTSA Orange left border (`4px solid #F15A22`), 8px border-radius. `school` icon in Midnight Navy `#032044`. Explains that the quiz is authored in Drupal Webforms and rendered dynamically via the `webform_rest` API.
+- **Question Cards** — One `mat-card` per question, white background with Concrete border (`1px solid #EBE6E2`), 12px border-radius, generous padding. Each card shows:
+  - **Orange number badge** — UTSA Orange `#F15A22` pill (28px circle, Montserrat 700, white text) displaying the question number (1, 2, 3, etc.)
+  - **Question title** — Montserrat 600, Midnight Navy `#032044`
+  - A "Required" chip — transparent background with navy border (`1px solid #032044`)
+  - **Radio buttons** (`mat-radio-group`) for multiple-choice questions with increased spacing (12px between options)
   - Supports `radios`, `select`, `checkboxes`, and `textfield`/`textarea` types
-- **Submit Button** — Disabled until all required questions are answered. Shows an italic hint: "Answer all questions to submit."
+- **Submit Button** — UTSA Orange `#F15A22` background, white text, Montserrat 600, 8px border-radius. Disabled until all required questions are answered. Shows an italic hint in Smoke `#D5CFC8`: "Answer all questions to submit."
 
-### UI Layout — Post-Submission
+**Content Area (Post-Submission)** — Same Limestone background. Additional elements:
 
-- **Result Banner** — Replaces the info banner. Green (`#c8e6c9`) for pass (>= 80%), red (`#ffcdd2`) for fail. Displays score as fraction and percentage.
+- **Pass Banner** — Warm light orange `#FFF3E0` background with UTSA Orange left border (`4px solid #F15A22`), 12px border-radius. `check_circle` icon in UTSA Orange. Score text: Montserrat 600, Navy `#032044`. "Passed!" text: UTSA Orange, bold.
+- **Fail Banner** — Midnight Navy `#032044` background, 12px border-radius. `cancel` icon in UTSA Orange `#F15A22`. Score text: white. "Please review..." text: `rgba(255,255,255,0.8)`.
 - **Question Cards** — Each card gains a colored left border:
-  - Green border + "Correct" chip for right answers
-  - Red border + "Incorrect" chip for wrong answers
+  - Green border (`#4caf50`) + "Correct" chip (`#c8e6c9`) for right answers
+  - Red border (`#f44336`) + "Incorrect" chip (`#ffcdd2`) for wrong answers
 - **Radio buttons become disabled** (read-only review mode).
-- **Retake Button** — Replaces the submit button, allowing the user to reset and try again.
+- **Retake Button** — Outlined orange style (`2px solid #F15A22`, transparent background, orange text), Montserrat 600, 8px border-radius. Replaces the submit button.
 - **Snack Bar** — A Material snackbar confirms score was saved (or warns if the .NET API was unreachable).
 
 ### Data Flow
@@ -253,17 +308,24 @@ The Quiz page is a graded assessment that tests the employee's phishing awarenes
 
 ### Technical Notes
 
+- **UTSA Brand Consistency:** The Quiz page uses the same Montserrat + Roboto font pairing, UTSA Orange `#F15A22`, Midnight Navy `#032044`, and Limestone `#F8F4F1` as the other branded pages, completing the cohesive design system across all six branded pages (Home, Dashboard, Quiz, Modules, Module Detail, Results).
+- **Edge-to-edge layout:** The component uses `margin: -24px` on `.quiz-container` to negate the app shell's content-area padding, allowing the navy header to extend to the edges.
+- **Loading spinner:** Renders on the Limestone content area with UTSA Orange stroke color (`::ng-deep` override on `mat-mdc-progress-spinner circle`).
 - **Questions are CMS-driven.** The quiz structure (questions, options, types) is authored in Drupal Webforms — the Angular app renders whatever fields the API returns. Adding or changing questions requires no Angular code change.
 - **Answer key is hardcoded.** The current answer key matches the seed script `create_quiz_webform.php`. If questions change in Drupal, the answer key in the component must be updated to match.
 - **Graceful degradation:** If the .NET API is down, the score is still calculated and displayed — only the persistence fails (with a warning snackbar).
+- **Responsive:** Two breakpoints — tablet ≤768px (header title 1.4rem, content padding 16px), mobile ≤480px (header padding reduced, buttons stack vertically).
+- **Correct/Incorrect feedback:** Green/red left borders and chips are intentionally kept as functional feedback indicators (not branded) for universal comprehension.
 
 ---
 
 ## 5. Simulation Results (`/results`)
 
-**[SECTION_METADATA: CONCEPTS=Data_Tables,GoPhish_Campaigns,Score_Tracking | DIFFICULTY=Intermediate | RESPONDS_TO: Definition_Explanation]**
+**[SECTION_METADATA: CONCEPTS=Data_Tables,GoPhish_Campaigns,Score_Tracking,UTSA_Branding | DIFFICULTY=Intermediate | RESPONDS_TO: Definition_Explanation]**
 
 **Screenshots:** `Drupal_QuizScores.png`, `Drupal_PhishingScores.png`
+
+> **Branding status:** ✅ UTSA-branded (Mar 20, 2026). This page follows the same design system as Home, Dashboard, Quiz, and Modules: Montserrat + Roboto fonts, Orange/Navy/Limestone palette, navy header block, orange KPI values.
 
 ### Business Purpose
 
@@ -271,37 +333,45 @@ The Results page is the detailed reporting view. While the Dashboard shows high-
 
 ### UI Layout
 
-The page uses a **Material tab group** with two tabs:
+The page uses a **branded header block** (Midnight Navy `#032044`) containing the page title, subtitle, and a Material tab group with an orange active-tab indicator on a navy background. Tab content renders on a Limestone `#F8F4F1` background.
+
+#### Branded Header
+
+- **Title:** "Simulation Results" — Montserrat 700, white, 1.8rem
+- **Subtitle:** "Quiz Scores & Phishing Campaign Analytics" — Roboto 300, `rgba(255,255,255,0.7)`, 1rem
+- **Tab labels:** White (Montserrat 600, 0.9rem), inactive tabs `rgba(255,255,255,0.6)`, active tab has UTSA Orange `#F15A22` underline indicator
+- **Layout:** Edge-to-edge (`margin: -24px`) to negate the app shell's content padding
 
 #### Tab 1: Quiz Scores
 
-- **Summary Card** — Three stats displayed in a centered row:
+- **KPI Summary Row** — Athletics Navy `#0C2340` background, 3-column grid, each stat in a thin white-bordered card (12px radius):
 
-| Stat | Description |
-| :--- | :--- |
-| Total Attempts | Count of all quiz result records |
-| Average Score | Mean of all scores (rounded %) |
-| Pass Rate | % of scores >= 80 |
+| Stat | Value Style | Label Style |
+| :--- | :--- | :--- |
+| Total Attempts | Orange `#F15A22`, Montserrat 700, 2.5rem | White, Roboto 400, uppercase, 0.85rem |
+| Average Score | Orange `#F15A22`, Montserrat 700, 2.5rem | White, Roboto 400, uppercase, 0.85rem |
+| Pass Rate (≥80%) | Orange `#F15A22`, Montserrat 700, 2.5rem | White, Roboto 400, uppercase, 0.85rem |
 
-- **Results Table** — A full-width `mat-table` with columns:
+- **Results Table** — White card wrapper (12px radius, Concrete `#EBE6E2` border, subtle shadow), Concrete header row, Montserrat 600 uppercase header text, Roboto 400 body cells, Limestone hover:
 
 | Column | Content |
 | :--- | :--- |
 | User | `userId` (currently "demo-user") |
 | Campaign / Quiz | `campaignId` (e.g., "phishing_awareness_quiz") |
-| Score | Percentage with pass/fail chip (green >= 80%, red < 80%) |
+| Score | Percentage with pill-shaped pass/fail chip (green ≥80%, red <80%) |
 | Completed | Formatted date/time |
 
-- **Empty State** — If no results exist, an inbox icon with "No results yet. Complete a quiz to see scores here."
-- **Refresh Button** — Bottom-right button to reload data.
+- **Empty State** — Limestone background card with Concrete left border, inbox icon with "No results yet. Complete a quiz to see scores here."
+- **Refresh Button** — Orange `#F15A22` outlined style (2px border, Montserrat 600), bottom-right.
 
 #### Tab 2: Phishing Campaigns
 
-- **Campaign Cards** — One `mat-card` per GoPhish campaign, each showing:
-  - Campaign name and status chip (color-coded by status)
-  - Launch date
-  - **Summary Row** — 5 stats: Targets, Emails Sent, Opened, Clicked Link, Submitted Data
-  - **Target Table** — A `mat-table` with columns: Name, Email, Position, Status (color-coded chip), Send Date
+- **Campaign Cards** — White cards (12px radius, Concrete border, subtle shadow), padding 24px, each showing:
+  - **Campaign title:** Montserrat 600, Midnight Navy `#032044`, 1.2rem
+  - **Status chip:** Pill-shaped (16px radius), semantic colors retained (orange/green/blue/yellow/amber/red)
+  - **Launch date:** Roboto 400, `rgba(0,0,0,0.54)`, 0.9rem
+  - **Summary Stats Grid** — 5-column grid: Targets, Emails Sent, Opened, Clicked Link, Submitted Data. Values: UTSA Orange `#F15A22`, Montserrat 700, 1.5rem. Labels: Midnight Navy `#032044`, Roboto 400, uppercase, 0.75rem.
+  - **Target Table** — Same branded styling as Quiz tab table (Concrete header, row hover, branded fonts)
 
 - **Status Chip Colors:**
 
@@ -314,8 +384,17 @@ The page uses a **Material tab group** with two tabs:
 | Submitted Data | Red `#ffcdd2` |
 | Completed | Green `#c8e6c9` |
 
-- **Empty State** — "No phishing campaigns found. Seed GoPhish to see campaigns here."
-- **Refresh Button** — Per-tab reload.
+- **Empty State** — Limestone background with Concrete left border. "No phishing campaigns found. Seed GoPhish to see campaigns here."
+- **Error State** — Limestone background with red left border.
+- **Refresh Button** — Same orange outlined style as Quiz tab.
+
+### Technical Notes
+
+- **Edge-to-edge layout:** `.results-container { margin: -24px; }` — same pattern used by Dashboard, Quiz, Modules.
+- **Tab styling via `::ng-deep`:** Overrides Material tab label colors, indicator color, and header border to match the navy header block.
+- **Differentiated stat grids:** Quiz summary uses `.summary-stats` (3 columns, larger values on navy). Campaign uses `.campaign-stats` (5 columns, smaller values on white).
+- **Responsive breakpoints:** Desktop (>1024px) full layout → Tablet (768–1024px) campaign stats 3-col → Mobile (<768px) quiz KPI stacks to 1-col, campaign stats 2-col, tables scroll horizontally.
+- **Loading spinner:** UTSA Orange `#F15A22` via `::ng-deep .mat-mdc-progress-spinner circle { stroke: #F15A22; }`.
 
 ### Data Flow
 
@@ -349,3 +428,6 @@ The page uses a **Material tab group** with two tabs:
 | **Responsive Grids** | CSS Grid `auto-fit` / `minmax` for columns that collapse on mobile | Home, Dashboard |
 | **Manual Change Detection** | `ChangeDetectorRef.detectChanges()` called after async data arrives (standalone component pattern) | All 6 pages |
 | **Snackbar Notifications** | `MatSnackBar` for transient success/warning messages | Quiz |
+| **UTSA Design System** | Montserrat (600/700/800 headlines) + Roboto (300/400 body), Orange `#F15A22` accents, Navy `#032044` header sections, Limestone `#F8F4F1` content areas, edge-to-edge layout via `margin: -24px`, responsive at 768px/480px. Modules page adds Pluralsight-inspired split layout (hero panel + dark sidebar). Results page uses tabbed KPI (navy header + tab group with orange active indicator). | All 6 pages |
+
+> **Branding scope (Mar 20, 2026):** All six pages have UTSA branding: **Home**, **Dashboard**, **Quiz**, **Modules**, **Module Detail**, **Results**.

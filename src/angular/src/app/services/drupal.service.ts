@@ -46,7 +46,8 @@ export class DrupalService {
 
   private mapModule(item: any, included: any[]): TrainingModule {
     const attrs = item.attributes;
-    const categoryRef = item.relationships?.field_category?.data;
+    const categoryData = item.relationships?.field_category?.data;
+    const categoryRef = Array.isArray(categoryData) ? categoryData[0] : categoryData;
     let category = 'Uncategorized';
     if (categoryRef) {
       const term = included.find(
@@ -59,8 +60,8 @@ export class DrupalService {
     return {
       id: item.id,
       title: attrs.title,
-      description: attrs.field_description || '',
-      videoUrl: attrs.field_video_url || '',
+      description: attrs.field_description?.value || attrs.field_description || '',
+      videoUrl: attrs.field_video_url?.uri || attrs.field_video_url || '',
       difficulty: attrs.field_difficulty || '',
       duration: attrs.field_duration || '',
       category,

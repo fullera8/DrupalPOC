@@ -15,6 +15,7 @@ This wiki uses a **tiered documentation system** optimized for LLM-assisted deve
 ### Reference
 - **[💬 Chat Log](ChatLog)** - Running conversation log: architecture decisions, setup history, debugging, and design rationale
 - **[📖 Metadata Legend](Metadata-Legend)** - Tag definitions, LLM interpretation rules, canonical naming, query routing
+- **[📄 Page Functionality](pagefunctionality)** - UI/UX and technical overview of each Angular page (layout, data flow, design system)
 
 ## Project Overview
 
@@ -74,6 +75,8 @@ The developer has established enterprise patterns for the following components, 
 
 ## Current Progress
 
+> **UTSA Branding Status (Mar 20, 2026):** All six pages are styled with the UTSA brand design system (Montserrat + Roboto fonts, Orange/Navy/Limestone palette): **Home**, **Dashboard**, **Quiz**, **Modules**, **Module Detail**, **Results**.
+
 | Day | Status | Summary |
 | :--- | :--- | :--- |
 | **Day 1** | ✅ Complete | Azure provisioning (AKS, SQL, MySQL) + Drupal content modeling (Training Module type, quiz webform, sample content, JSON:API + CORS) |
@@ -83,6 +86,10 @@ The developer has established enterprise patterns for the following components, 
 | **Day 5** | ✅ Complete | DDEV Mutagen sync troubleshooting + self-healing in start-dev.ps1, stop-dev.ps1 shutdown script, deploy-aks.ps1 AKS deployment pipeline, GoPhish local setup (Mailpit SMTP), nginx CSS aggregation fix (try_files), mailpit_link custom module (environment-aware), Architecture Semantic Enrichment, GoPhish SQLite → Azure MySQL migration, DDEV GoPhish sidecar, seed scripts (production → local pipeline) |
 | **Open Brain<br>Steps 1–12** | ✅ Complete | LLM-agnostic persistent memory MCP server. 11 build steps (scaffold → Bicep infra → SQL schema → embedding service → DB service → metadata extractor → 4 MCP tools → server entry → Azure deploy). Step 12: end-to-end integration testing via VS Code Copilot Agent mode — 12/12 tests passed (6 local + 6 remote), 2 infrastructure fixes (workspace root mcp.json, DDEV port mapping). See **[🧠 Open Brain](Open-Brain)** |
 | **Landing Page** | ✅ Complete | UTSA-branded marketing-quality landing page (`HomeComponent`). Hero section with campus backdrop, value proposition cards, training pathway tiles, live KPI row (ApiService + GophishService), footer. Default route changed from `/dashboard` to `/home`. Montserrat font added for headlines. Sidenav updated to 5 items. |
+| **Dashboard Overhaul** | ✅ Complete | UTSA-branded visual overhaul of `DashboardComponent`. Navy header bar, KPI stat blocks (orange values on navy), Limestone charts section, UTSA color arrays for Chart.js bar/pie charts, Roboto fonts on chart axes, 3 responsive breakpoints. Style-only — no logic changes. |
+| **Quiz Overhaul** | ✅ Complete | UTSA-branded visual overhaul of `QuizComponent`. Navy header bar, Limestone content area, orange number badges on question cards, UTSA-branded info/pass/fail banners, orange submit + outlined retake buttons. Style-only — no quiz logic, scoring, or service call changes. |
+| **Modules Overhaul** | ✅ Complete | UTSA-branded visual overhaul of `ModulesComponent` + `ModuleDetailComponent`. Pluralsight-inspired split layout (hero + dark sidebar), numbered orange badges, branded detail with video frame. Includes JSON:API field mapping bugfixes in `mapModule()` and seed script `find_or_create_term_id()` fix. |
+| **Results Overhaul** | ✅ Complete | UTSA-branded visual overhaul of `ResultsComponent`. Navy header block with tab group (orange active indicator), Quiz KPI row on Athletics Navy (3-column grid, orange values), branded data tables (Concrete headers, Limestone hover), campaign cards with 5-stat summary grids, orange outlined refresh buttons, branded empty/error/loading states. Style-only — no data logic changes. All 6 Angular pages now UTSA-branded. |
 
 See **[📋 Planning](Planning)** for detailed task tracking.
 

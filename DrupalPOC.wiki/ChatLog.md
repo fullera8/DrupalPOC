@@ -4679,3 +4679,413 @@ Three breakpoints:
 | Footer links | All point to `javascript:void(0)` | Connect to actual pages/modals post-POC |
 
 **[LLM_CONTEXT: The Home page (`/home`) is now the default landing page. The root path `/` redirects to `/home` (previously `/dashboard`). The sidenav has 5 items (Home, Dashboard, Training Modules, Quiz, Simulation Results). The KPI section reuses the exact same `ApiService` and `GophishService` pattern as `DashboardComponent` — if KPI logic changes, update both components. UTSA brand assets are in `src/angular/public/images/` (served as `/images/` at runtime). Montserrat font was added to `index.html`. All existing routes and components are unmodified.]**
+
+---
+
+## Dashboard Visual Overhaul — UTSA Branding (Mar 20, 2026)
+**[SECTION_METADATA: CONCEPTS=Angular,Dashboard,UTSA_Branding,Chart.js,KPI,Visual_Overhaul | DIFFICULTY=Beginner-Intermediate | TOOLS=Angular_CLI,TypeScript,Chart.js | RESPONDS_TO: Implementation_How-To, Definition_Explanation]**
+
+### Overview
+**[DIFFICULTY: Beginner-Intermediate] [CONCEPTS: Angular, Dashboard, UTSA_Branding, Chart.js]**
+
+Restyled the existing `DashboardComponent` to match the UTSA-branded design system established by the Home page. This was a **style-only overhaul** — no changes to data loading logic, KPI computation, service calls, or component class methods. Only the inline template, inline styles, and Chart.js color arrays were modified.
+
+### What Changed
+
+| Area | Before | After |
+| :--- | :--- | :--- |
+| **Header** | Plain `<h2>Compliance Dashboard</h2>` | Navy `#032044` section with Montserrat 700 title + Roboto 300 subtitle |
+| **KPI Cards** | `mat-card` with colored Material icons (blue, green, orange, red) | Transparent stat blocks on navy background, thin white border outlines, UTSA Orange `#F15A22` values (2.5rem Montserrat 700), white uppercase labels, small white icons (24px) |
+| **Charts Background** | Default white | Limestone `#F8F4F1` section |
+| **Chart Cards** | Default `mat-card` styling | White cards, 12px border-radius, subtle shadow, Montserrat 600 Navy titles |
+| **Bar Chart Colors** | `['#ef5350', '#ff7043', '#ffa726', '#66bb6a', '#42a5f5']` | `['#D5CFC8', '#C8DCFF', '#0C2340', '#032044', '#F15A22']` (Smoke → River Mist → Athletics Navy → Midnight Navy → UTSA Orange) |
+| **Pie Chart Colors** | Sending=`#90caf9`, Sent=`#64b5f6`, Opened=`#fff176`, Clicked=`#ffb74d`, Submitted=`#ef5350` | Sending=`#C8DCFF`, Sent=`#D5CFC8`, Opened=`#EBE6E2`, Clicked=`#F15A22`, Submitted=`#032044` |
+| **Loading Spinner** | Default Material spinner on white | UTSA Orange stroke on navy background |
+| **Responsive** | Single `auto-fit` grid | Three breakpoints: desktop (4-col/2-col), tablet ≤768px (2-col/1-col), mobile ≤480px (1-col/1-col) |
+
+### Template Structure (New)
+
+```html
+<div class="dashboard-container">          <!-- margin: -24px for edge-to-edge -->
+  <section class="navy-block">             <!-- #032044 background -->
+    <div class="header-section">           <!-- Title + Subtitle -->
+    <div class="loading-container">        <!-- Spinner on navy -->
+    <div class="kpi-section">              <!-- 4 stat blocks -->
+      <div class="kpi-grid">
+        <div class="stat-block">           <!-- border outline, transparent bg -->
+          <mat-icon class="stat-icon">     <!-- 24px, white -->
+          <div class="stat-value">         <!-- Orange, 2.5rem, Montserrat 700 -->
+          <div class="stat-label">         <!-- White, uppercase, Roboto -->
+  <section class="charts-section">         <!-- Limestone #F8F4F1 -->
+    <div class="charts-grid">
+      <mat-card class="chart-card">        <!-- White, 12px radius, subtle shadow -->
+```
+
+### What Was NOT Changed
+
+- `constructor`, `ngOnInit`, `onDataLoaded`, `computeKPIs` — untouched
+- Service imports (`ApiService`, `GophishService`) and injection — untouched
+- `@ViewChild` references (`quizChartRef`, `phishChartRef`) — untouched
+- `Chart.register(...registerables)` — untouched
+- `ngAfterViewInit` lifecycle hook — untouched
+- `dataReady` counter pattern — untouched
+- `setTimeout(() => this.renderCharts(), 0)` — untouched
+- Chart type, data computation, labels, dataset structure — untouched
+
+### Design System Consistency
+
+The restyled dashboard shares these patterns with the Home page:
+- **Fonts:** Montserrat (headlines, stat values) + Roboto (body, labels)
+- **Colors:** UTSA Orange `#F15A22`, Midnight Navy `#032044`, Athletics Navy `#0C2340`, Limestone `#F8F4F1`
+- **KPI stat block pattern:** Large orange values on navy background with white labels
+- **Navy-to-Limestone transition:** Dark section followed by light section
+- **Responsive breakpoints:** 768px and 480px
+
+**[LLM_CONTEXT: The DashboardComponent now uses the UTSA brand design system (Montserrat + Roboto fonts, Orange `#F15A22` stat values, Navy `#032044` backgrounds, Limestone `#F8F4F1` charts section). This was a style-only overhaul — no data logic, service calls, or KPI computation was changed. The component uses `margin: -24px` to negate the app shell's content-area padding for edge-to-edge navy background. Chart.js colors were updated to the UTSA palette (bar chart: Smoke → Navy → Orange gradient; pie chart: UTSA status-color mapping). Both Dashboard and Home now share the same design system — if brand colors change, update both components.]**
+
+---
+
+## Quiz Visual Overhaul — UTSA Branding (Mar 20, 2026)
+**[SECTION_METADATA: CONCEPTS=Angular,Quiz,UTSA_Branding,Drupal_Webform,Visual_Overhaul | DIFFICULTY=Beginner-Intermediate | TOOLS=Angular_CLI,TypeScript | RESPONDS_TO: Implementation_How-To, Definition_Explanation]**
+
+### Overview
+**[DIFFICULTY: Beginner-Intermediate] [CONCEPTS: Angular, Quiz, UTSA_Branding, Drupal_Webform]**
+
+Restyled the existing `QuizComponent` to match the UTSA-branded design system established by the Home page and Dashboard. This was a **style-only overhaul** — no changes to quiz logic, field parsing, answer checking, scoring, submission, reset functionality, or service calls. Only the inline template and inline styles were modified.
+
+### What Changed
+
+| Area | Before | After |
+| :--- | :--- | :--- |
+| **Header** | Plain `<h2>Phishing Awareness Quiz</h2>` | Navy `#032044` section with Montserrat 700 title + Roboto 300 subtitle |
+| **Layout** | Default white background, no container structure | Edge-to-edge navy header + Limestone `#F8F4F1` content area (`margin: -24px`) |
+| **Info Banner** | Blue `#e3f2fd` background | Limestone `#F8F4F1` background + UTSA Orange left border (`4px solid #F15A22`), `school` icon in Navy |
+| **Question Cards** | Default `mat-card`, plain "1." prefix, `16px` margin | White cards with Concrete border (`1px solid #EBE6E2`), 12px radius, orange number badges (pill), Montserrat titles, `20px` margin |
+| **Required Chip** | `color="accent" highlighted` (Material default) | Transparent background + navy border (`1px solid #032044`) |
+| **Radio Spacing** | `8px 0` margin | `12px 0` margin |
+| **Submit Button** | `color="primary"` (Material blue) | Custom `.submit-btn` — UTSA Orange `#F15A22`, white text, Montserrat 600, 8px radius |
+| **Retake Button** | `color="accent"` (Material default) | Custom `.retake-btn` — outlined orange (`2px solid #F15A22`), transparent background |
+| **Hint Text** | `rgba(0,0,0,0.54)` italic | Smoke `#D5CFC8` italic |
+| **Pass Banner** | Green `#c8e6c9` background | Warm `#FFF3E0` + orange left border, `check_circle` icon in `#F15A22`, score in Montserrat 600 Navy |
+| **Fail Banner** | Red `#ffcdd2` background | Midnight Navy `#032044` background, `cancel` icon in `#F15A22`, white text |
+| **Loading Spinner** | Default Material spinner | UTSA Orange stroke via `::ng-deep` |
+| **Submit Row** | `margin-top: 24px` | `margin-top: 32px` |
+
+### Template Structure (New)
+
+```html
+<div class="quiz-container">              <!-- margin: -24px for edge-to-edge -->
+  <section class="header-bar">            <!-- #032044 background -->
+    <h1 class="header-title">             <!-- Montserrat 700, white, 1.8rem -->
+    <p class="header-subtitle">            <!-- Roboto 300, rgba(255,255,255,0.7) -->
+  <div class="content-area">              <!-- Limestone #F8F4F1 background -->
+    <mat-card class="info-banner">         <!-- Orange left border, Limestone bg -->
+    <mat-card class="result-banner">       <!-- Pass: #FFF3E0 / Fail: #032044 -->
+    <div class="questions-list">
+      <mat-card class="question-card">     <!-- White, Concrete border, 12px radius -->
+        <span class="q-number-badge">      <!-- Orange pill, 28px, Montserrat 700 -->
+        <mat-chip class="chip-required">   <!-- Navy border, transparent bg -->
+      <div class="submit-row">
+        <button class="submit-btn">        <!-- UTSA Orange, white text -->
+        <button class="retake-btn">        <!-- Outlined orange -->
+```
+
+### What Was NOT Changed
+
+- `QuizQuestion` interface and `ANSWER_KEY` constant — untouched
+- `constructor`, `ngOnInit`, `allAnswered`, `isCorrect`, `submitQuiz`, `resetQuiz`, `parseFields` — untouched
+- Service imports (`DrupalService`, `ApiService`) and injection — untouched
+- `MatSnackBar` and `ChangeDetectorRef` injection — untouched
+- `*ngFor` loop structure for questions — untouched
+- `ngModel` bindings for answers — untouched
+- `[disabled]="submitted"` bindings on radio buttons — untouched
+- Snackbar notifications — untouched
+- Correct/Incorrect chips — kept green `#c8e6c9` / red `#ffcdd2` (functional feedback)
+- Left borders on question cards — kept green `#4caf50` / red `#f44336` (functional feedback)
+
+### Design System Consistency
+
+The restyled quiz now shares these patterns with the Home page and Dashboard:
+- **Fonts:** Montserrat (headlines, badges, score text, buttons) + Roboto (body, labels, options)
+- **Colors:** UTSA Orange `#F15A22`, Midnight Navy `#032044`, Limestone `#F8F4F1`, Concrete `#EBE6E2`, Smoke `#D5CFC8`
+- **Header pattern:** Midnight Navy section with Montserrat title + Roboto subtitle
+- **Edge-to-edge layout:** `margin: -24px` to negate app shell content-area padding
+- **Loading spinner:** UTSA Orange stroke override via `::ng-deep`
+- **Button treatment:** Orange primary (raised), orange secondary (outlined)
+- **Responsive breakpoints:** 768px and 480px
+
+Three pages now share the unified UTSA brand design system: Home, Dashboard, and Quiz.
+
+**[LLM_CONTEXT: The QuizComponent now uses the UTSA brand design system (Montserrat + Roboto fonts, Orange `#F15A22` accents, Navy `#032044` header, Limestone `#F8F4F1` content area). This was a style-only overhaul — no quiz logic, field parsing, answer checking, scoring, submission, or service calls were changed. The component uses `margin: -24px` to negate the app shell's content-area padding for edge-to-edge navy header. Correct/Incorrect feedback (green/red chips and left borders) was intentionally kept as functional indicators, not branded. Three pages now share the UTSA design system: Home, Dashboard, Quiz — if brand colors change, update all three components. The Required chip was changed from Material `color="accent"` to a custom transparent+navy-border style.]**
+
+---
+
+## Training Modules Visual Overhaul — UTSA Branding (Mar 20, 2026)
+
+**[SECTION_METADATA: CONCEPTS=Angular,Modules,Module_Detail,UTSA_Branding,Pluralsight_Layout | DIFFICULTY=Intermediate | RESPONDS_TO: Implementation_How-To]**
+
+### Scope
+
+Visual overhaul of `ModulesComponent` (list page) and `ModuleDetailComponent` (detail page) to match the UTSA-branded design system established by Home, Dashboard, and Quiz. Pluralsight-inspired split layout pattern adopted for the list page. **Style-only overhaul** — no data-fetching logic, service calls, routing, or `TrainingModule` type changes.
+
+### Before → After Summary
+
+| Element | Before | After |
+| :--- | :--- | :--- |
+| **List: Heading** | `<h2>Training Modules</h2>` | Navy `#032044` header bar, Montserrat 700 title + Roboto 300 subtitle |
+| **List: Layout** | Full-width accordion | CSS Grid split layout: hero panel (left) + dark sidebar (right) |
+| **List: Hero Panel** | (none) | Athletics Navy `#0C2340` bg, large orange `play_circle` icon (80px), "Select a module to begin" text |
+| **List: Sidebar** | White accordion panels, all expanded | Navy `#032044` bg, transparent panels, first expanded / others collapsed |
+| **List: Module Icons** | `play_circle` icon | Numbered orange circle badges (UTSA Orange `#F15A22`, Montserrat 700, 28px circle) |
+| **List: Module Titles** | Default dark text | White text, Roboto 400 |
+| **List: Count Badge** | `(3)` text | Pill badge: `rgba(255,255,255,0.3)` bg, white text, 10px radius |
+| **List: Duration Chip** | Default Material | `rgba(255,255,255,0.2)` bg, white text |
+| **List: Difficulty Chip** | Green/yellow/red | Same colors, added dark `#333` text for readability |
+| **List: Hover** | Default Material | `rgba(255,255,255,0.08)` subtle highlight |
+| **Detail: Header** | `<h2>{{ title }}</h2>` + plain back link | Navy header bar with module title + category subtitle, orange `#F15A22` back link |
+| **Detail: Back Link** | `mat-button` with arrow | Orange Montserrat 600 text, `arrow_back` icon, no Material button styling |
+| **Detail: Content Area** | Default white | Limestone `#F8F4F1` background |
+| **Detail: Video** | Plain iframe, 8px radius | Athletics Navy `#0C2340` frame, 16px padding, 12px radius, box-shadow |
+| **Detail: Chips** | Default Material chips | Duration/Category: Concrete `#EBE6E2` bg + Navy text. Difficulty: green/yellow/red + `#333` text |
+| **Detail: Description** | Plain `mat-card` | White card, Concrete border, 12px radius, "About This Module" Montserrat title |
+| **Loading Spinner** | Default Material | UTSA Orange `#F15A22` stroke via `::ng-deep` |
+| **Edge-to-edge** | Standard padding | `margin: -24px` on `:host` (both components) |
+
+### Template Structure (modules.component.ts)
+
+```
+<section class="header-bar">             ← Navy #032044, edge-to-edge
+  <h1>Training Modules</h1>              ← Montserrat 700, white
+  <p>Security Awareness Curriculum</p>   ← Roboto 300, muted white
+</section>
+<div class="split-layout">               ← CSS Grid: 1fr 380px
+  <div class="hero-panel">               ← Athletics Navy #0C2340
+    <mat-icon>play_circle</mat-icon>      ← 80px, UTSA Orange
+    <p>Select a module to begin</p>
+  </div>
+  <div class="sidebar-panel">            ← Navy #032044
+    <mat-accordion>
+      <mat-expansion-panel>               ← transparent bg, first expanded
+        <mat-nav-list>
+          <a mat-list-item>
+            <span class="mod-number-badge">1</span>  ← Orange circle
+            <div class="mod-info">
+              <span class="mod-title">...</span>
+              <mat-chip-set>difficulty + duration</mat-chip-set>
+            </div>
+          </a>
+        </mat-nav-list>
+      </mat-expansion-panel>
+    </mat-accordion>
+  </div>
+</div>
+```
+
+### Template Structure (module-detail.component.ts)
+
+```
+<section class="header-bar">             ← Navy #032044, edge-to-edge
+  <a class="back-link">← Back</a>        ← Orange #F15A22, Montserrat 600
+  <h1>{{ mod.title }}</h1>                ← Montserrat 700, white
+  <p>{{ mod.category }}</p>               ← Roboto 300, muted white
+</section>
+<section class="content-area">            ← Limestone #F8F4F1
+  <mat-chip-set>                          ← Difficulty + Duration + Category
+  <div class="video-frame">              ← Athletics Navy frame, 12px radius
+    <div class="video-wrapper">           ← 16:9 responsive iframe
+  </div>
+  <mat-card class="description-card">     ← White, Concrete border, 12px radius
+    <h3>About This Module</h3>            ← Montserrat 600, Navy
+    <p>{{ mod.description }}</p>           ← Roboto 400, Navy
+  </mat-card>
+</section>
+```
+
+### What Was NOT Changed
+
+- `TrainingModule` type and `DrupalService` methods — untouched
+- `ModulesComponent.groupByCategory()` method — untouched
+- `ModuleDetailComponent.toEmbedUrl()` method — untouched
+- `DomSanitizer.bypassSecurityTrustResourceUrl()` — untouched
+- `ActivatedRoute` parameter reading — untouched
+- `ChangeDetectorRef.detectChanges()` calls — untouched
+- Service imports and injection — untouched
+- Routing configuration and `routerLink` bindings — untouched
+- Difficulty chip color scheme (green/yellow/red) — retained as functional feedback
+
+### Design System Consistency
+
+The restyled modules pages now share these patterns with Home, Dashboard, and Quiz:
+- **Fonts:** Montserrat (headlines, badges, titles, back link) + Roboto (body, subtitles, labels)
+- **Colors:** UTSA Orange `#F15A22`, Midnight Navy `#032044`, Athletics Navy `#0C2340`, Limestone `#F8F4F1`, Concrete `#EBE6E2`
+- **Header pattern:** Midnight Navy section with Montserrat title + Roboto subtitle
+- **Edge-to-edge layout:** `margin: -24px` on `:host` to negate app shell content-area padding
+- **Loading spinner:** UTSA Orange stroke override via `::ng-deep`
+- **Card treatment:** 12px border-radius, Concrete borders, subtle box-shadow
+- **Responsive breakpoints:** 768px (stack layout) and 480px (compact sizing)
+
+**Unique to Modules:** The Pluralsight-inspired split layout (hero panel + dark sidebar accordion) is a unique pattern not shared by other pages. This was specified in the design prompt to differentiate the learning catalog from dashboard/quiz experiences.
+
+Five pages now share the unified UTSA brand design system: Home, Dashboard, Quiz, Modules, Module Detail. *(Results was branded later — see "Simulation Results Visual Overhaul" section below.)*
+
+**[LLM_CONTEXT: The ModulesComponent and ModuleDetailComponent now use the UTSA brand design system. ModulesComponent uses a unique Pluralsight-inspired split layout (hero panel + dark sidebar accordion with numbered orange badges). ModuleDetailComponent uses the standard branded header pattern plus an Athletics Navy video frame and "About This Module" description card. This was a style-only overhaul — no data-fetching logic, service calls, routing, TrainingModule type, groupByCategory(), or toEmbedUrl() were changed. Both components use `margin: -24px` for edge-to-edge layout. **SUPERSEDED:** All six pages now share the UTSA design system (Home, Dashboard, Quiz, Modules, Module Detail, Results). If brand colors change, update all six components. See "Simulation Results Visual Overhaul" section for the sixth page.]**
+
+---
+
+## Drupal JSON:API Field Mapping Bugfixes (Mar 20, 2026)
+
+**[SECTION_METADATA: CONCEPTS=Drupal_JSON_API,Angular,DrupalService,Field_Mapping,Debugging | DIFFICULTY=Beginner-Intermediate | RESPONDS_TO: Debugging_Troubleshooting]**
+
+### Problem
+
+After the Training Modules visual overhaul, three data-rendering bugs appeared on the Module Detail page:
+
+1. **Video failed to load** — Console error: `TypeError: url.match is not a function` in `toEmbedUrl()`.
+2. **Description showed `[object Object]`** — Rendered object literal instead of text.
+3. **All modules showed "Uncategorized"** — Category taxonomy terms were never resolved.
+
+All three bugs had the same root cause: `DrupalService.mapModule()` treated Drupal JSON:API field values as plain strings, but JSON:API returns structured objects for certain field types.
+
+### Root Cause Analysis
+
+| Field | Drupal Field Type | JSON:API Returns | mapModule Expected | Fix |
+| :--- | :--- | :--- | :--- | :--- |
+| `field_video_url` | Link | `{ uri: "https://...", title: "...", options: [] }` | `string` | Extract `.uri` via `attrs.field_video_url?.uri` |
+| `field_description` | Formatted text (basic_html) | `{ value: "...", format: "basic_html", processed: "..." }` | `string` | Extract `.value` via `attrs.field_description?.value` |
+| `field_category` | Entity reference (taxonomy) | `{ data: [{ type: "...", id: "..." }] }` (array) | `{ type, id }` (single object) | Unwrap array via `Array.isArray(data) ? data[0] : data` |
+
+Additionally, the seed script (`seed_training_content.php`) only looked up taxonomy terms — it never created them. If the terms didn't exist, modules were saved without category references.
+
+### Fix — `drupal.service.ts` `mapModule()`
+
+```typescript
+// Before (broken):
+videoUrl: attrs.field_video_url || '',
+description: attrs.field_description || '',
+const categoryRef = item.relationships?.field_category?.data;
+
+// After (fixed):
+videoUrl: attrs.field_video_url?.uri || attrs.field_video_url || '',
+description: attrs.field_description?.value || attrs.field_description || '',
+const categoryData = item.relationships?.field_category?.data;
+const categoryRef = Array.isArray(categoryData) ? categoryData[0] : categoryData;
+```
+
+Each fix uses optional chaining with a fallback, so both object and plain-string responses are handled safely.
+
+### Fix — `seed_training_content.php`
+
+Renamed `find_term_id()` → `find_or_create_term_id()`. If a taxonomy term doesn't exist in the `training_category` vocabulary, the function now creates it via `Term::create()` before returning the TID. This ensures modules are always saved with a valid category reference.
+
+### Verification
+
+- `ng build --configuration=development` — zero errors (all 3 fixes)
+- `ddev drush scr scripts/seed_training_content.php` — re-seeded with proper category assignment
+- `ddev drush ev` — confirmed `field_category` resolves to "Phishing Awareness" on node
+- JSON:API response confirmed via `curl` — `included` array contains taxonomy terms, `data[].relationships.field_category.data` is an array
+
+### Debugging Lesson
+
+**[DEBUGGING_PATTERNS: JSON_API_Field_Types]**
+
+Drupal JSON:API returns different shapes depending on the Drupal field type:
+
+| Drupal Field Type | JSON:API Shape | How to Read |
+| :--- | :--- | :--- |
+| Plain text (`string`) | `"value"` | Direct assignment |
+| Formatted text (`text_long`) | `{ value, format, processed }` | `.value` or `.processed` |
+| Link (`link`) | `{ uri, title, options }` | `.uri` |
+| Entity reference (single) | `{ data: { type, id } }` | `.data` |
+| Entity reference (multi) | `{ data: [{ type, id }, ...] }` | `.data[0]` or iterate |
+| Number (`integer`) | `8` | Direct assignment |
+| List/Select (`list_string`) | `"value"` | Direct assignment |
+
+**[LLM_CONTEXT: When adding new Drupal fields to the Angular frontend, always check the JSON:API response shape. Use optional chaining with fallbacks (e.g. `attrs.field_x?.uri || attrs.field_x || ''`) to handle both object and scalar responses. Entity reference `data` may be a single object OR an array depending on field cardinality — always check with `Array.isArray()`. The `seed_training_content.php` script now auto-creates taxonomy terms via `find_or_create_term_id()` — no manual Drupal admin taxonomy setup is required for seeded categories.]**
+
+---
+
+## Simulation Results Visual Overhaul — UTSA Branding (Mar 20, 2026)
+
+**[SECTION_METADATA: CONCEPTS=Results_Page,UTSA_Branding,Angular_Material,Visual_Overhaul | DIFFICULTY=Intermediate | RESPONDS_TO: Implementation_How-To]**
+
+### Scope
+
+Style-only overhaul of `ResultsComponent` (`results.component.ts`). No changes to component class logic (`loadResults`, `loadCampaigns`, `countStatus`, `getStatusClass`, `calculateStats`), service calls, data bindings, or tab structure. Only the inline `template` and `styles` were modified.
+
+This was the **sixth and final** page to receive UTSA branding. All Angular pages now share the design system.
+
+### Changes Summary
+
+| Phase | What Changed |
+| :--- | :--- |
+| 1. Header & Tabs | Replaced `<h2>` with navy header block (`#032044`) containing Montserrat title + Roboto subtitle. Tab group sits on navy with orange `#F15A22` active indicator, white labels, transparent background. |
+| 2. Quiz KPI Row | Summary card restyled: Athletics Navy `#0C2340` background, 3-column CSS Grid, orange values (Montserrat 700, 2.5rem), white uppercase labels, thin white-bordered stat blocks. |
+| 3. Quiz Table | Wrapped in `.table-wrapper` (white card, 12px radius, Concrete border). Header row Concrete `#EBE6E2` with Montserrat 600 uppercase. Body cells Roboto 400. Row hover Limestone. Pass/fail chips pill-shaped. |
+| 4. Campaign Cards | White cards (12px radius, Concrete border, shadow). Campaign stats in 5-column grid with orange values (1.5rem) and Navy uppercase labels (0.75rem). Target tables match quiz table styling. |
+| 5. Utilities | Refresh buttons: orange `#F15A22` outlined (2px border, Montserrat 600). Empty states: Limestone + Concrete left border. Error states: Limestone + red left border. Spinners: UTSA Orange via `::ng-deep`. |
+| 6. Responsive | Desktop: full layout. Tablet (≤1024px): campaign stats 3-col. Mobile (≤768px): quiz KPI stacks 1-col, campaign stats 2-col, header title 1.4rem, tables scroll horizontally. |
+
+### Design System Consistency
+
+The Results page now matches the Dashboard sibling pattern:
+- Same `margin: -24px` edge-to-edge layout
+- Same navy header block structure (title + subtitle)
+- Same orange KPI values on navy/dark background
+- Same Limestone content area below
+- Same `::ng-deep` tab and spinner overrides
+- Same Montserrat (headings/values) + Roboto (body/labels) font split
+
+### Key CSS Class Architecture
+
+| Class | Purpose |
+| :--- | :--- |
+| `.navy-header-block` | Wraps header + tab-group in navy container |
+| `.summary-stats` | Quiz KPI 3-column grid (on navy) |
+| `.campaign-stats` | Campaign 5-column grid (on white card) |
+| `.table-wrapper` | White card container for all data tables |
+| `.refresh-btn` | Orange outlined refresh button |
+
+**Verification:** Angular build — zero errors (1.804s). Only `results.component.ts` changed.
+
+**[LLM_CONTEXT: All six Angular pages are now UTSA-branded (Home, Dashboard, Quiz, Modules, Module Detail, Results). The Results page uses the same design system as Dashboard — navy header block, orange KPI values, Limestone content area, `::ng-deep` tab/spinner overrides. Campaign stats use `.campaign-stats` (5-col grid, smaller values) vs quiz summary `.summary-stats` (3-col grid, larger values). No component class logic was changed — only the inline template HTML and styles array. The edge-to-edge pattern `margin: -24px` is used consistently across all branded pages.]**
+
+---
+
+## Documentation Cross-Referencing & Knowledge Gap Audit (Mar 20, 2026)
+
+**[SECTION_METADATA: CONCEPTS=Documentation,Cross_Referencing,Knowledge_Audit | DIFFICULTY=Beginner | RESPONDS_TO: Definition_Explanation]**
+
+### Scope
+
+After completing the Results Visual Overhaul (the sixth and final branded page), a full cross-document audit was performed to ensure all wiki files, README, and architecture docs are consistent and cross-referenced.
+
+### Changes Applied
+
+| File | Change |
+| :--- | :--- |
+| **README.md** | Added `Page Functionality` row to the Wiki & Documentation table with description: "Developer onboarding guide — UI/UX layout, data flow, design system details, and technical notes for every Angular page" |
+| **pagefunctionality.md** | Fixed stale "five branded pages" → "six branded pages" in Quiz technical notes |
+| **pagefunctionality.md** | Updated Shared UX Patterns table: UTSA Design System row now lists "All 6 pages" and includes Results tab description. Branding scope callout updated from "Five pages / Results deferred" to "All six pages have UTSA branding." |
+
+### Knowledge Gap Audit Results
+
+| Document | Status | Findings |
+| :--- | :--- | :--- |
+| **README.md** | ✅ Current | Wiki table now lists all 8 doc pages. Current Progress table includes all overhauls. Tech stack, prerequisites, and repo structure all accurate. |
+| **Home.md** | ✅ Current | Branding status says "All six pages." Progress table includes Results Overhaul row. |
+| **Architecture.md** | ✅ Current | Frontend Hub row references "UTSA-branded simulation results (navy header, tabbed KPI + data tables)." Mermaid diagram shows logical data flow (Angular → GoPhish arrow represents proxied calls via .NET API). |
+| **Planning.md** | ✅ Current | Results Visual Overhaul section has 17 checked items. All branding overhauls marked complete. Post-POC backlog items intentionally deferred. |
+| **pagefunctionality.md** | ✅ Fixed | All six pages documented with UTSA brand details. Section 5 (Results) has full branded layout, data flow, and technical notes. Shared UX Patterns updated. |
+| **ChatLog.md** | ✅ Current | Results Visual Overhaul section present. This documentation audit section appended. |
+| **Metadata-Legend.md** | ✅ Current | Schema v1.1 with document map pointing to all 7 wiki pages. No gaps. |
+| **Budget.md** | ✅ Current (POC scope) | Financial model and cost-per-component estimates accurate. 4 TODO items remain (refine AKS sizing, estimate Blob/Redis costs, Perplexity deep-dive) — these are post-POC analysis tasks, not gaps. |
+
+### Remaining Deferred Items (Intentional)
+
+These items in Planning.md are **intentionally deferred** and are NOT documentation gaps:
+- Seed Azure SQL with sample scores and completions
+- End-to-end walkthrough: trainee views module → takes quiz → views dashboard
+- Take screenshots for wiki / pitch deck
+- All post-POC backlog items (SSO, LTI 1.3, multi-tenancy, etc.)
+
+**[LLM_CONTEXT: As of Mar 20, 2026, all documentation is consistent and cross-referenced. README.md Wiki table now includes Page Functionality (8 entries total). All six Angular pages are documented in pagefunctionality.md with UTSA brand details. The Architecture.md Mermaid diagram arrow from Angular → GoPhish represents the logical data flow — physically, Angular calls the .NET API which proxies to GoPhish (the API key stays server-side). Budget.md TODO items are post-POC analysis tasks. No documentation gaps remain except the 3 intentionally deferred Planning.md items (sample data seeding, walkthrough, screenshots).]**
